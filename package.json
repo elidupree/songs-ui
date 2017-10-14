@@ -4,7 +4,8 @@
   "description": "A minimal Electron application",
   "main": "main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "build": "electron-build-env neon build codecophony-render-gui"
   },
   "repository": "https://github.com/electron/electron-quick-start",
   "keywords": [
@@ -16,7 +17,12 @@
   ],
   "author": "GitHub",
   "license": "CC0-1.0",
+  "dependencies": {
+    "codecophony-render-gui": "file:./codecophony-render-gui"
+  },
   "devDependencies": {
-    "electron": "~1.7.8"
+    "electron": "~1.7.8",
+    "electron-build-env": "^0.2",
+    "neon-cli": "^0.1.17"
   }
 }
