@@ -1,0 +1,14 @@
+{
+  "name": "codecophony-render-gui",
+  "version": "0.1.0",
+  "description": "Bindings to a codecophony project",
+  "main": "lib/index.js",
+  "author": "Eli Dupree <vcs@elidupree.com>",
+  "license": "MIT",
+  "dependencies": {
+    "neon-cli": "^0.1.20"
+  },
+  "scripts": {
+    "install": "neon build"
+  }
+}
