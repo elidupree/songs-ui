@@ -32,46 +32,48 @@ function frequency_to_nearest_midi_pitch(frequency) {
   return 69 + Math.round(Math.log(frequency/440.0)/log_semitone_ratio);
 }
 
+let time_scale = 80;
+let semitone_scale = 10;
+let log_frequency_scale = semitone_scale/log_semitone_ratio;
+
 function draw_phrase (phrase, phrase_index) {
-  let div = document.createElement ("div");
+  let metadata = {}
+  let div = metadata.element = document.createElement ("div");
   let canvas = document.createElement ("canvas");
   let context = canvas.getContext ("2d");
   div.appendChild (canvas) ;
-  let min_time = 0.0;
-  let max_time = 4.0;
-  let min_frequency = 130.0;
-  let max_frequency = 880.0;
+  metadata.min_time = 0.0;
+  metadata.max_time = 4.0;
+  metadata.min_frequency = 130.0;
+  metadata.max_frequency = 880.0;
   phrase.data.notes.forEach(function(note, index) {
-    min_time = Math.min (min_time, note.start - 1);
-    max_time = Math.max (max_time, note.end + 1);
-    min_frequency = Math.min (min_frequency, note.frequency);
-    max_frequency = Math.max (max_frequency, note.frequency);
+    metadata.min_time = Math.min (metadata.min_time, note.start - 1);
+    metadata.max_time = Math.max (metadata.max_time, note.end + 1);
+    metadata.min_frequency = Math.min (metadata.min_frequency, note.frequency);
+    metadata.max_frequency = Math.max (metadata.max_frequency, note.frequency);
   });
   
-  let time_width = max_time - min_time;
-  let log_min_frequency = Math.log (min_frequency) - log_semitone_ratio*12.5;
-  let log_max_frequency = Math.log (max_frequency) + log_semitone_ratio*12.5;
-  let log_frequency_ratio = log_max_frequency - log_min_frequency;
-  let semitone_height = log_frequency_ratio/log_semitone_ratio;
+  metadata.time_width = metadata.max_time - metadata.min_time;
+  metadata.log_min_frequency = Math.log (metadata.min_frequency) - log_semitone_ratio*12.5;
+  metadata.log_max_frequency = Math.log (metadata.max_frequency) + log_semitone_ratio*12.5;
+  metadata.log_frequency_ratio = metadata.log_max_frequency - metadata.log_min_frequency;
+  metadata.height_in_semitones = metadata.log_frequency_ratio/log_semitone_ratio;
   
-  let time_scale = 80;
-  let width = time_width*time_scale;
-  let semitone_scale = 10;
-  let height = semitone_height*semitone_scale;
-  let log_frequency_scale = semitone_scale/log_semitone_ratio;
-  
-  canvas.setAttribute ("width", width);
-  canvas.setAttribute ("height", height);
+  metadata.width = metadata.time_width*time_scale;
+  metadata.height = metadata.height_in_semitones*semitone_scale;
+   
+  canvas.setAttribute ("width", metadata.width);
+  canvas.setAttribute ("height", metadata.height);
   
   let note_coordinates = function (note, target) {
     let result = target || {};
-    result.canvas_min_x = (note.start - min_time) * time_scale;
-    result.canvas_max_x = (note.end - min_time) * time_scale;
+    result.canvas_min_x = (note.start - metadata.min_time) * time_scale;
+    result.canvas_max_x = (note.end - metadata.min_time) * time_scale;
     result.canvas_width = result.canvas_max_x - result.canvas_min_x;
     result.log_frequency = Math.log (note.frequency);
-    let midh = log_max_frequency - result.log_frequency;
-    result.canvas_min_y_downwards = height * ((midh - log_semitone_ratio/2) / log_frequency_ratio);
-    result.canvas_max_y_downwards = height * ((midh + log_semitone_ratio/2) / log_frequency_ratio);
+    let midh = metadata.log_max_frequency - result.log_frequency;
+    result.canvas_min_y_downwards = metadata.height * ((midh - log_semitone_ratio/2) / metadata.log_frequency_ratio);
+    result.canvas_max_y_downwards = metadata.height * ((midh + log_semitone_ratio/2) / metadata.log_frequency_ratio);
     result.canvas_height = result.canvas_max_y_downwards - result.canvas_min_y_downwards;
     result.min_displayed_frequency = note.frequency/sqrt_semitone_ratio;
     result.max_displayed_frequency = note.frequency*sqrt_semitone_ratio;
@@ -85,12 +87,12 @@ function draw_phrase (phrase, phrase_index) {
   let get_coordinates = function (canvas_x, canvas_y_downwards) {
     let result = {};
     result.canvas_x = canvas_x;
-    result.time = result.canvas_x/time_scale + min_time;
+    result.time = result.canvas_x/time_scale + metadata.min_time;
     result.canvas_y_downwards = canvas_y_downwards;
-    result.canvas_y_upwards = height - result.canvas_y_downwards;
-    result.frequency = Math.exp(result.canvas_y_upwards/log_frequency_scale + log_min_frequency);
-    result.on_canvas_horizontally = (result.time >= min_time && result.time <= max_time);
-    result.on_canvas_vertically = (result.canvas_y_downwards >= 0 && result.canvas_y_downwards <= height);
+    result.canvas_y_upwards = metadata.height - result.canvas_y_downwards;
+    result.frequency = Math.exp(result.canvas_y_upwards/log_frequency_scale + metadata.log_min_frequency);
+    result.on_canvas_horizontally = (result.time >= metadata.min_time && result.time <= metadata.max_time);
+    result.on_canvas_vertically = (result.canvas_y_downwards >= 0 && result.canvas_y_downwards <= metadata.height);
     result.on_canvas = result.on_canvas_horizontally && result.on_canvas_vertically;
     return result;
   };
@@ -158,9 +160,9 @@ function draw_phrase (phrase, phrase_index) {
     }
   };
   
-  let redraw = function() {
+  let redraw = metadata.redraw = function() {
     context.fillStyle = "#eee";
-    context.fillRect(0,0,width,height);
+    context.fillRect(0,0,metadata.width,metadata.height);
     
     context.fillStyle = "#000";
     //context.lineWidth = 4;
@@ -177,9 +179,9 @@ function draw_phrase (phrase, phrase_index) {
     
     if (phrase.timed_with_playback) {
       context.fillStyle = "#f00";
-      context.fillRect((playback_position - min_time)*time_scale, 0, 1, height);
-      context.fillRect((playback_start    - min_time)*time_scale, 0, 1, height);
-      context.fillRect((playback_end      - min_time)*time_scale, 0, 1, height);
+      context.fillRect((playback_position - metadata.min_time)*time_scale, 0, 1, metadata.height);
+      context.fillRect((playback_start    - metadata.min_time)*time_scale, 0, 1, metadata.height);
+      context.fillRect((playback_end      - metadata.min_time)*time_scale, 0, 1, metadata.height);
     }
     
     if (drag_select !== null) {
@@ -326,10 +328,7 @@ function draw_phrase (phrase, phrase_index) {
   
   //redraw();
   
-  return {
-    element: div,
-    redraw: redraw,
-  };
+  return metadata;
 }
 
 function update() {
