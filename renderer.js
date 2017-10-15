@@ -5,7 +5,9 @@
 const songs = require('codecophony-render-gui');
 // document.write(songs.poll_rendered());
 
-
+function push_input (input) {
+  songs.push_gui_input (JSON.stringify(input));
+}
 
 let semitone_ratio = Math.pow (2, 1/12);
 let log_semitone_ratio = Math.log (semitone_ratio);
@@ -15,16 +17,23 @@ let playback_position;
 let playback_start = 0.0;
 let playback_end = 10.0;
 
+function midi_pitch_to_frequency(pitch) {
+  return 440.0*semitone_ratio.pow(pitch-69);
+}
+function frequency_to_nearest_midi_pitch(frequency) {
+  return 69 + Math.round(Math.log(frequency/440.0)/log_semitone_ratio);
+}
+
 function draw_phrase (phrase) {
   let result = document.createElement ("div");
   let canvas = document.createElement ("canvas");
   let context = canvas.getContext ("2d");
   result.appendChild (canvas) ;
-  let min_time = Infinity;
-  let max_time = -Infinity;
-  let min_frequency = Infinity;
-  let max_frequency = -Infinity;
-  phrase.notes.forEach(function(note) {
+  let min_time = 0.0;
+  let max_time = 10.0;
+  let min_frequency = 130.0;
+  let max_frequency = 880.0;
+  phrase.data.notes.forEach(function(note) {
     min_time = Math.min (min_time, note.start - 1);
     max_time = Math.max (max_time, note.end + 1);
     min_frequency = Math.min (min_frequency, note.frequency);
@@ -32,7 +41,7 @@ function draw_phrase (phrase) {
     note.log_frequency = Math.log (note.frequency)
   });
   
-  if (min_time > max_time) { return result; }
+  //if (min_time > max_time) { return result; }
   
   let time_width = max_time - min_time;
   let log_min_frequency = Math.log (min_frequency) - log_semitone_ratio*12.5;
@@ -42,7 +51,9 @@ function draw_phrase (phrase) {
   
   let time_scale = 32;
   let width = time_width*time_scale;
-  let height = semitone_height*5;
+  let semitone_scale = 5;
+  let height = semitone_height*semitone_scale;
+  let log_frequency_scale = semitone_scale/log_semitone_ratio;
   
   canvas.setAttribute ("width", width);
   canvas.setAttribute ("height", height);
@@ -52,7 +63,7 @@ function draw_phrase (phrase) {
     context.fillRect(0,0,width,height);
     
     context.fillStyle = "#000";
-    phrase.notes.forEach(function(note) {
+    phrase.data.notes.forEach(function(note) {
       let start = (note.start - min_time) * time_scale;
       let end = (note.end - min_time) * time_scale;
       let midh = log_max_frequency - note.log_frequency;
@@ -62,12 +73,15 @@ function draw_phrase (phrase) {
       context.fillRect(start, top, end-start, bottom-top);
     });
     
-    context.fillStyle = "#f00";
-    context.fillRect((playback_position - min_time)*time_scale, 0, 1, height);
-    context.fillRect((playback_start    - min_time)*time_scale, 0, 1, height);
-    context.fillRect((playback_end      - min_time)*time_scale, 0, 1, height);
+    if (phrase.timed_with_playback) {
+      context.fillStyle = "#f00";
+      context.fillRect((playback_position - min_time)*time_scale, 0, 1, height);
+      context.fillRect((playback_start    - min_time)*time_scale, 0, 1, height);
+      context.fillRect((playback_end      - min_time)*time_scale, 0, 1, height);
+    }
   };
   
+  if (phrase.timed_with_playback && phrase.editing_id === null) {
   let dragging_mouse_original_time = null;
   let dragging_start;
   let dragging_original_start;
@@ -102,10 +116,26 @@ function draw_phrase (phrase) {
   });
   document.addEventListener ("mouseup", function (event) {
     dragging_mouse_original_time = null;
-    songs.push_gui_input (JSON.stringify({
+    push_input ({
       "SetPlaybackRange": [playback_start, playback_end],
-    }));
+    });
   });
+  }
+  
+  if (phrase.editing_id !== null) {
+  console.log ( [phrase.editing_id, phrase.data]);
+    canvas.addEventListener ("click", function (event) {
+      let mouse_x = event.clientX - canvas.offsetLeft;
+      let mouse_time = mouse_x/time_scale + min_time;
+      let mouse_y = canvas.offsetTop + height - event.clientY;
+      let mouse_frequency = Math.exp(mouse_y/log_frequency_scale + log_min_frequency);
+      phrase.data.notes.push ({start: mouse_time, end: mouse_time +1, frequency: mouse_frequency, tags: []});
+      console.log ( [phrase.editing_id, phrase.data]);
+      push_input ({
+        "EditPhrase": [phrase.editing_id, phrase.data],
+      });
+    });
+  }
   
   //redraw();
   
