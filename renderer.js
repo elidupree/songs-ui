@@ -10,6 +10,7 @@ function push_input (input) {
 }
 
 let semitone_ratio = Math.pow (2, 1/12);
+let sqrt_semitone_ratio = Math.pow (2, 1/24);
 let log_semitone_ratio = Math.log (semitone_ratio);
 
 let redraw_phrases = [];
@@ -30,15 +31,16 @@ function draw_phrase (phrase) {
   let context = canvas.getContext ("2d");
   result.appendChild (canvas) ;
   let min_time = 0.0;
-  let max_time = 10.0;
+  let max_time = 4.0;
   let min_frequency = 130.0;
   let max_frequency = 880.0;
-  phrase.data.notes.forEach(function(note) {
+  phrase.data.notes.forEach(function(note, index) {
     min_time = Math.min (min_time, note.start - 1);
     max_time = Math.max (max_time, note.end + 1);
     min_frequency = Math.min (min_frequency, note.frequency);
     max_frequency = Math.max (max_frequency, note.frequency);
-    note.log_frequency = Math.log (note.frequency)
+    
+    note.index = index;
   });
   
   //if (min_time > max_time) { return result; }
@@ -49,28 +51,111 @@ function draw_phrase (phrase) {
   let log_frequency_ratio = log_max_frequency - log_min_frequency;
   let semitone_height = log_frequency_ratio/log_semitone_ratio;
   
-  let time_scale = 32;
+  let time_scale = 80;
   let width = time_width*time_scale;
-  let semitone_scale = 5;
+  let semitone_scale = 10;
   let height = semitone_height*semitone_scale;
   let log_frequency_scale = semitone_scale/log_semitone_ratio;
   
   canvas.setAttribute ("width", width);
   canvas.setAttribute ("height", height);
   
+  let note_coordinates = function (note, target) {
+    let result = target || {};
+    result.canvas_min_x = (note.start - min_time) * time_scale;
+    result.canvas_max_x = (note.end - min_time) * time_scale;
+    result.canvas_width = result.canvas_max_x - result.canvas_min_x;
+    result.log_frequency = Math.log (note.frequency);
+    let midh = log_max_frequency - result.log_frequency;
+    result.canvas_min_y_downwards = height * ((midh - log_semitone_ratio/2) / log_frequency_ratio);
+    result.canvas_max_y_downwards = height * ((midh + log_semitone_ratio/2) / log_frequency_ratio);
+    result.canvas_height = result.canvas_max_y_downwards - result.canvas_min_y_downwards;
+    result.min_displayed_frequency = note.frequency/sqrt_semitone_ratio;
+    result.max_displayed_frequency = note.frequency*sqrt_semitone_ratio;
+    return result;
+  }
+  
+  phrase.data.notes.forEach(function(note) {
+    note.coordinates = note_coordinates(note);
+  });
+  
+  let get_coordinates = function (canvas_x, canvas_y_downwards) {
+    let result = {};
+    result.canvas_x = canvas_x;
+    result.time = result.canvas_x/time_scale + min_time;
+    result.canvas_y_downwards = canvas_y_downwards;
+    result.canvas_y_upwards = height - result.canvas_y_downwards;
+    result.frequency = Math.exp(result.canvas_y_upwards/log_frequency_scale + log_min_frequency);
+    result.on_canvas_horizontally = (result.time >= min_time && result.time <= max_time);
+    result.on_canvas_vertically = (result.canvas_y_downwards >= 0 && result.canvas_y_downwards <= height);
+    result.on_canvas = result.on_canvas_horizontally && result.on_canvas_vertically;
+    return result;
+  }
+  
+  let mouse_coordinates = function (event) {
+    return get_coordinates(event.pageX - canvas.offsetLeft, event.pageY - canvas.offsetTop);
+  }
+  
+  let get_overlapping_note = function (coordinates) {
+    return phrase.data.notes.find(function(note) {
+      if ( note.coordinates.canvas_min_x < coordinates.canvas_x
+        && note.coordinates.canvas_max_x > coordinates.canvas_x
+        && note.coordinates.canvas_min_y_downwards < coordinates.canvas_y_downwards
+        && note.coordinates.canvas_max_y_downwards > coordinates.canvas_y_downwards) {
+        return true;
+      }
+    }) || null;
+  }
+  let get_overlapping_notes = function (x1,y1,x2,y2) {
+    return phrase.data.notes.filter(function(note) {
+      console.log (x1,y1,x2,y2, note) ;
+      console.log (note.coordinates.canvas_min_x < x1,note.coordinates.canvas_min_x < x2,note.coordinates.canvas_max_x > x1,note.coordinates.canvas_max_x > x2,note.coordinates.canvas_min_y_downwards < y1,note.coordinates.canvas_min_y_downwards < y2,note.coordinates.canvas_max_y_downwards > y1,note.coordinates.canvas_max_y_downwards > y2) ;
+      if ( (note.coordinates.canvas_min_x < x1 || note.coordinates.canvas_min_x < x2)
+        && (note.coordinates.canvas_max_x > x1 || note.coordinates.canvas_max_x > x2)
+        && (note.coordinates.canvas_min_y_downwards < y1 || note.coordinates.canvas_min_y_downwards < y2)
+        && (note.coordinates.canvas_max_y_downwards > y1 || note.coordinates.canvas_max_y_downwards > y2)) {
+        return true;
+      }
+      return false;
+    });
+  }
+  
+  let drag_select = null;
+  let drag_move = null;
+  let selected_notes = {};
+  let dragged_note = function (note) {
+    let result = Object.assign({}, note, {
+      start: note.start + drag_move.current_coordinates.time - drag_move.original_coordinates.time,
+      end: note.end + drag_move.current_coordinates.time - drag_move.original_coordinates.time,
+      frequency: note.frequency + drag_move.current_coordinates.frequency - drag_move.original_coordinates.frequency,
+    });
+    result.coordinates = note_coordinates (result);
+    return result;
+  };
+  let draw_note = function(note) {
+    let coordinates = note.coordinates;
+    
+    context.fillRect(coordinates.canvas_min_x, coordinates.canvas_min_y_downwards, coordinates.canvas_width, coordinates.canvas_height);
+    if (selected_notes [note.index]) {
+      context.strokeRect(coordinates.canvas_min_x, coordinates.canvas_min_y_downwards, coordinates.canvas_width, coordinates.canvas_height);
+    }
+  };
+  
   let redraw = function() {
     context.fillStyle = "#eee";
     context.fillRect(0,0,width,height);
     
     context.fillStyle = "#000";
+    //context.lineWidth = 4;
+    context.strokeStyle = "#00f";
+    
     phrase.data.notes.forEach(function(note) {
-      let start = (note.start - min_time) * time_scale;
-      let end = (note.end - min_time) * time_scale;
-      let midh = log_max_frequency - note.log_frequency;
-      let top = height * ((midh - log_semitone_ratio/2) / log_frequency_ratio);
-      let bottom = height * ((midh + log_semitone_ratio/2) / log_frequency_ratio);
-      //console.log(start, top, end-start, bottom-top);
-      context.fillRect(start, top, end-start, bottom-top);
+      if (drag_move && selected_notes [note.index]) {
+        draw_note (dragged_note (note));
+      }
+      else {
+        draw_note (note);
+      }
     });
     
     if (phrase.timed_with_playback) {
@@ -78,6 +163,15 @@ function draw_phrase (phrase) {
       context.fillRect((playback_position - min_time)*time_scale, 0, 1, height);
       context.fillRect((playback_start    - min_time)*time_scale, 0, 1, height);
       context.fillRect((playback_end      - min_time)*time_scale, 0, 1, height);
+    }
+    
+    if (drag_select !== null) {
+      context.strokeStyle = "#f00";
+      context.strokeRect (
+        drag_select.original_coordinates.canvas_x,
+        drag_select.original_coordinates.canvas_y_downwards,
+        drag_select.current_coordinates.canvas_x - drag_select.original_coordinates.canvas_x,
+        drag_select.current_coordinates.canvas_y_downwards - drag_select.original_coordinates.canvas_y_downwards);
     }
   };
   
@@ -88,28 +182,25 @@ function draw_phrase (phrase) {
   let dragging_original_end;
   
   canvas.addEventListener ("mousedown", function (event) {
-    let mouse_x = event.clientX - canvas.offsetLeft;
-    let mouse_time = mouse_x/time_scale + min_time;
-    
-    dragging_mouse_original_time = mouse_time;
-    dragging_start = Math.abs(mouse_time - playback_start) < Math.abs(mouse_time - playback_end);
+    let coordinates = mouse_coordinates (event);
+    dragging_mouse_original_time = coordinates.time;
+    dragging_start = Math.abs(coordinates.time - playback_start) < Math.abs(coordinates.time - playback_end);
     dragging_original_start = playback_start;
     dragging_original_end = playback_end;
   });
   document.addEventListener ("mousemove", function (event) {
-    let mouse_x = event.clientX - canvas.offsetLeft;
-    let mouse_time = mouse_x/time_scale + min_time;
+    let coordinates = mouse_coordinates (event);
     if (dragging_mouse_original_time !== null) {
-      //console.log(event.clientX, canvas.offsetLeft);
-      if (mouse_time < min_time || mouse_time > max_time) {
+      //console.log(coordinates);
+      if (!coordinates.on_canvas_horizontally) {
         playback_start = dragging_original_start;
         playback_end = dragging_original_end;
       }
       else if (dragging_start) {
-        playback_start = mouse_time;
+        playback_start = coordinates.time;
         playback_end = Math.max(dragging_original_end, playback_start + 0.1);
       } else {
-        playback_end = mouse_time;
+        playback_end = coordinates.time;
         playback_start = Math.min(dragging_original_start, playback_end - 0.1);
       }
     }
@@ -123,17 +214,93 @@ function draw_phrase (phrase) {
   }
   
   if (phrase.editing_id !== null) {
-  console.log ( [phrase.editing_id, phrase.data]);
-    canvas.addEventListener ("click", function (event) {
-      let mouse_x = event.clientX - canvas.offsetLeft;
-      let mouse_time = mouse_x/time_scale + min_time;
-      let mouse_y = canvas.offsetTop + height - event.clientY;
-      let mouse_frequency = Math.exp(mouse_y/log_frequency_scale + log_min_frequency);
-      phrase.data.notes.push ({start: mouse_time, end: mouse_time +1, frequency: mouse_frequency, tags: []});
-      console.log ( [phrase.editing_id, phrase.data]);
-      push_input ({
-        "EditPhrase": [phrase.editing_id, phrase.data],
+    //console.log ( [phrase.editing_id, phrase.data]);
+    
+    
+    
+    let changed = function() { push_input ({
+      "EditPhrase": [phrase.editing_id, phrase.data],
+    }); };
+    let for_selected = function (callback) {
+      Object.getOwnPropertyNames (selected_notes).forEach(function(index) {
+        callback (phrase.data.notes [index]);
       });
+    };
+    
+    let modify_selection = function (notes, event) {
+      if (!event.shiftKey && !event.ctrlKey) {
+        selected_notes = {};
+      }
+      if (event.ctrlKey) {
+        notes.forEach(function(note) {
+          delete selected_notes[note.index];
+        });
+      }
+      else {
+        notes.forEach(function(note) {
+          selected_notes[note.index] = true;
+        });
+      }
+    }
+        
+    canvas.addEventListener ("click", function (event) {
+      let coordinates = mouse_coordinates (event);
+      let overlapping = get_overlapping_note (coordinates);
+      //console.log (coordinates, overlapping ) ;
+      if (overlapping === null && event.shiftKey) {
+        let note = {start: coordinates.time, end: coordinates.time +1, frequency: coordinates.frequency, tags: []};
+        note.coordinates = note_coordinates(note);
+        phrase.data.notes.push (note);
+        //console.log ( [phrase.editing_id, phrase.data]);
+        changed();
+      }
+      else if (overlapping !== null) {
+        modify_selection ([overlapping], event);
+      }
+      else {
+        modify_selection ([], event);
+      }
+    });
+    
+    
+    
+    canvas.addEventListener ("mousedown", function (event) {
+      let coordinates = mouse_coordinates (event);
+      let overlapping = get_overlapping_note (coordinates);
+      if (overlapping === null) {
+        drag_select = {event: event, original_coordinates: coordinates, current_coordinates: coordinates};
+      }
+      else {
+        drag_move = {event: event, original_coordinates: coordinates, current_coordinates: coordinates};
+      }
+    });
+    
+    canvas.addEventListener ("mousemove", function (event) {
+      let coordinates = mouse_coordinates (event);
+      (drag_select || drag_move || {}).current_coordinates = coordinates;
+    });
+    
+    canvas.addEventListener ("mouseup", function (event) {
+      let coordinates = mouse_coordinates (event);
+      if (drag_move) {
+        if (coordinates.on_canvas) {
+          for_selected (note => {
+            phrase.data.notes [note.index] = dragged_note (note);
+          });
+          changed();
+        }
+        drag_move = null;
+      }
+      
+      if (drag_select) {
+        modify_selection (get_overlapping_notes (
+          drag_select.original_coordinates.canvas_x,
+          drag_select.original_coordinates.canvas_y_downwards,
+          drag_select.current_coordinates.canvas_x,
+          drag_select.current_coordinates.canvas_y_downwards), drag_select.event);
+        
+        drag_select = null;
+      }
     });
   }
   
