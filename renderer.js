@@ -20,16 +20,40 @@ let semitone_ratio = Math.pow (2, 1/12);
 let sqrt_semitone_ratio = Math.pow (2, 1/24);
 let log_semitone_ratio = Math.log (semitone_ratio);
 
+var note_info = [
+    {name:"C", color:"white"},
+    {name:"Db", color:"black"},
+    {name:"D", color:"white"},
+    {name:"Eb", color:"black"},
+    {name:"E", color:"white"},
+    {name:"F", color:"white"},
+    {name:"Gb", color:"black"},
+    {name:"G", color:"white"},
+    {name:"Ab", color:"black"},
+    {name:"A", color:"white"},
+    {name:"Bb", color:"black"},
+    {name:"B", color:"white"},
+];
+function semitones_to_note_info (semitones) {
+  return note_info [(semitones+48) % 12];
+}
+function semitones_to_note_name (semitones) {
+  return semitones_to_note_info (semitones) + (Math.floor ((semitones+48)/12)).toString();
+}
+
 let phrases_metadata = {}
 let playback_start = 0.0;
 let playback_end = 10.0;
 let playback_position = 0.0;
 
 function midi_pitch_to_frequency(pitch) {
-  return 440.0*semitone_ratio.pow(pitch-69);
+  return 440.0*Math.pow(semitone_ratio, pitch-69);
+}
+function frequency_to_fractional_midi_pitch(frequency) {
+  return 69 + Math.round(Math.log(frequency/440.0)/log_semitone_ratio);
 }
 function frequency_to_nearest_midi_pitch(frequency) {
-  return 69 + Math.round(Math.log(frequency/440.0)/log_semitone_ratio);
+  return Math.round(frequency_to_fractional_midi_pitch(frequency));
 }
 
 let time_scale = 80;
@@ -37,11 +61,16 @@ let semitone_scale = 10;
 let log_frequency_scale = semitone_scale/log_semitone_ratio;
 
 function draw_phrase (phrase, phrase_index) {
-  let metadata = {}
+  let metadata = {phrase};
   let div = metadata.element = document.createElement ("div");
   let canvas = document.createElement ("canvas");
   let context = canvas.getContext ("2d");
   div.appendChild (canvas) ;
+  
+  let options = document.createElement ("div");
+  div.appendChild (options) ;
+  
+  
   
   metadata.update_dimensions = function() {
     metadata.min_time = 0.0;
@@ -51,13 +80,13 @@ function draw_phrase (phrase, phrase_index) {
     phrase.data.notes.forEach(function(note, index) {
       metadata.min_time = Math.min (metadata.min_time, note.start - 1);
       metadata.max_time = Math.max (metadata.max_time, note.end + 1);
-      metadata.min_frequency = Math.min (metadata.min_frequency, note.frequency);
-      metadata.max_frequency = Math.max (metadata.max_frequency, note.frequency);
+      metadata.min_frequency = Math.min (metadata.min_frequency, note.frequency*Math.pow(semitone_ratio, -12.5));
+      metadata.max_frequency = Math.max (metadata.max_frequency, note.frequency*Math.pow(semitone_ratio, 12.5));
     });
     
     metadata.time_width = metadata.max_time - metadata.min_time;
-    metadata.log_min_frequency = Math.log (metadata.min_frequency) - log_semitone_ratio*12.5;
-    metadata.log_max_frequency = Math.log (metadata.max_frequency) + log_semitone_ratio*12.5;
+    metadata.log_min_frequency = Math.log (metadata.min_frequency);
+    metadata.log_max_frequency = Math.log (metadata.max_frequency);
     metadata.log_frequency_ratio = metadata.log_max_frequency - metadata.log_min_frequency;
     metadata.height_in_semitones = metadata.log_frequency_ratio/log_semitone_ratio;
     
@@ -67,8 +96,17 @@ function draw_phrase (phrase, phrase_index) {
     canvas.setAttribute ("width", metadata.width);
     canvas.setAttribute ("height", metadata.height);
     
-    metadata.redraw();
-  }
+    phrase.data.notes.forEach(function(note) {
+      note.coordinates = note_coordinates(note);
+    });
+  };
+  
+  let frequency_position = function (frequency, target) {
+    let result = target || {};
+    result.log_frequency = Math.log (frequency);
+    result.canvas_y_downwards = metadata.height * ((metadata.log_max_frequency - result.log_frequency) / metadata.log_frequency_ratio);
+    return result;
+  };
   
   let note_coordinates = function (note, target) {
     let result = target || {};
@@ -85,9 +123,8 @@ function draw_phrase (phrase, phrase_index) {
     return result;
   }
   
-  phrase.data.notes.forEach(function(note) {
-    note.coordinates = note_coordinates(note);
-  });
+  metadata.update_dimensions();
+
   
   let get_coordinates = function (canvas_x, canvas_y_downwards) {
     let result = {};
@@ -167,7 +204,19 @@ function draw_phrase (phrase, phrase_index) {
   
   let redraw = metadata.redraw = function() {
     context.fillStyle = "#eee";
-    context.fillRect(0,0,metadata.width,metadata.height);
+    //context.fillRect(0,0,metadata.width,metadata.height);
+    
+    let min_semitones = frequency_to_fractional_midi_pitch (metadata.min_frequency);
+    let max_semitones = Math.ceil(frequency_to_fractional_midi_pitch (metadata.max_frequency));
+    for (let semitones = Math.floor (min_semitones); semitones <= max_semitones; ++semitones) {
+      let color = semitones_to_note_info (semitones).color;
+      //console.log (color, semitones) ;
+      context.fillStyle = "#fff";
+      if (color == "black") {
+        context.fillStyle = "#ddd";
+      }
+      context.fillRect(0, frequency_position (midi_pitch_to_frequency(semitones+0.5)).canvas_y_downwards,metadata.width, semitone_scale);
+    }
     
     context.fillStyle = "#000";
     //context.lineWidth = 4;
@@ -240,10 +289,11 @@ function draw_phrase (phrase, phrase_index) {
   if (phrase.editable) {
     
     let changed = function() {
-      metadata.update_dimensions();
       push_input ({
         "EditPhrase": [phrase_index, phrase.data],
       });
+      metadata.update_dimensions();
+      metadata.redraw();
     };
     let for_selected = function (callback) {
       iterate_keys (selected_notes, function(index) {
@@ -252,7 +302,7 @@ function draw_phrase (phrase, phrase_index) {
     };
     
     let modify_selection = function (notes, event) {
-      console.log(notes);
+      //console.log(notes);
       if (!event.shiftKey && !event.ctrlKey) {
         selected_notes = {};
       }
@@ -342,7 +392,6 @@ function draw_phrase (phrase, phrase_index) {
   }
   
   //redraw();
-  metadata.update_dimensions();
   
   return metadata;
 }
@@ -366,6 +415,8 @@ function update() {
         phrases_element.appendChild (drawn.element);
         phrases_metadata[index] = drawn;
       }
+      
+      console.log(phrases_metadata);
     }
     if (update.UpdatePlaybackPosition) {
       playback_position = update.UpdatePlaybackPosition;
