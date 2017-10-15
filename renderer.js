@@ -86,8 +86,12 @@ function draw_phrase (phrase) {
     let mouse_x = event.clientX - canvas.offsetLeft;
     let mouse_time = mouse_x/time_scale + min_time;
     if (dragging_mouse_original_time !== null) {
-      console.log(event.clientX, canvas.offsetLeft);
-      if (dragging_start) {
+      //console.log(event.clientX, canvas.offsetLeft);
+      if (mouse_time < min_time || mouse_time > max_time) {
+        playback_start = dragging_original_start;
+        playback_end = dragging_original_end;
+      }
+      else if (dragging_start) {
         playback_start = mouse_time;
         playback_end = Math.max(dragging_original_end, playback_start + 0.1);
       } else {
