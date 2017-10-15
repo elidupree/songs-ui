@@ -1,6 +1,6 @@
 var addon = require('../native');
 
 module.exports = {
-  set_playback_range: addon.set_playback_range,
-  poll_rendered: addon.poll_rendered,
+  push_gui_input: addon.push_gui_input,
+  poll_updates: addon.poll_updates,
 }

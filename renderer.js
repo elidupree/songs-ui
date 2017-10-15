@@ -12,6 +12,8 @@ let log_semitone_ratio = Math.log (semitone_ratio);
 
 let redraw_phrases = [];
 let playback_position;
+let playback_start = 0.0;
+let playback_end = 10.0;
 
 function draw_phrase (phrase) {
   let result = document.createElement ("div");
@@ -62,7 +64,44 @@ function draw_phrase (phrase) {
     
     context.fillStyle = "#f00";
     context.fillRect((playback_position - min_time)*time_scale, 0, 1, height);
+    context.fillRect((playback_start    - min_time)*time_scale, 0, 1, height);
+    context.fillRect((playback_end      - min_time)*time_scale, 0, 1, height);
   };
+  
+  let dragging_mouse_original_time = null;
+  let dragging_start;
+  let dragging_original_start;
+  let dragging_original_end;
+  
+  canvas.addEventListener ("mousedown", function (event) {
+    let mouse_x = event.clientX - canvas.offsetLeft;
+    let mouse_time = mouse_x/time_scale + min_time;
+    
+    dragging_mouse_original_time = mouse_time;
+    dragging_start = Math.abs(mouse_time - playback_start) < Math.abs(mouse_time - playback_end);
+    dragging_original_start = playback_start;
+    dragging_original_end = playback_end;
+  });
+  document.addEventListener ("mousemove", function (event) {
+    let mouse_x = event.clientX - canvas.offsetLeft;
+    let mouse_time = mouse_x/time_scale + min_time;
+    if (dragging_mouse_original_time !== null) {
+      console.log(event.clientX, canvas.offsetLeft);
+      if (dragging_start) {
+        playback_start = mouse_time;
+        playback_end = Math.max(dragging_original_end, playback_start + 0.1);
+      } else {
+        playback_end = mouse_time;
+        playback_start = Math.min(dragging_original_start, playback_end - 0.1);
+      }
+    }
+  });
+  document.addEventListener ("mouseup", function (event) {
+    dragging_mouse_original_time = null;
+    songs.push_gui_input (JSON.stringify({
+      "SetPlaybackRange": [playback_start, playback_end],
+    }));
+  });
   
   //redraw();
   
@@ -70,7 +109,7 @@ function draw_phrase (phrase) {
 }
 
 function update() {
-  let updates = JSON.parse(songs.poll_rendered());
+  let updates = JSON.parse(songs.poll_updates());
   updates.forEach(function(update) {
     if (update.ReplacePhrases) {
       let phrases_element = document.getElementById ("phrases");
