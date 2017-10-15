@@ -78,15 +78,24 @@ function draw_phrase (phrase, phrase_index) {
   seconds.
   `
   
+  metadata.grid_inputs = function() {
+    return {
+      numerator: document.getElementById (`${phrase_index}_grid_numerator`).valueAsNumber,
+      denominator: document.getElementById (`${phrase_index}_grid_denominator`).valueAsNumber,
+    };
+  };
+  
+  metadata.grid_step_size = function() {
+    let inputs = metadata.grid_inputs();
+    return inputs.numerator/inputs.denominator;
+  }
+  
   metadata.snap_time_to_grid = function (time) {
-    metadata.grid_numerator_input = document.getElementById (`${phrase_index}_grid_numerator`);
-    metadata.grid_denominator_input = document.getElementById (`${phrase_index}_grid_denominator`);
-    let numerator = metadata.grid_numerator_input.valueAsNumber;
-    let denominator = metadata.grid_denominator_input.valueAsNumber;
-    if (numerator === 0 || denominator === 0 || isNaN (numerator) || isNaN (denominator)) {return time;}
-    let increments = Math.round (time*denominator/numerator);
-    //console.log (time, increments, numerator, denominator);
-    return increments*numerator/denominator;
+    let inputs = metadata.grid_inputs();
+    if (inputs.numerator === 0 || inputs.denominator === 0 || isNaN (inputs.numerator) || isNaN (inputs.denominator)) {return time;}
+    let increments = Math.round (time*inputs.denominator/inputs.numerator);
+    //console.log (time, increments, inputs.numerator, inputs.denominator);
+    return increments*inputs.numerator/inputs.denominator;
   };
   metadata.snap_frequency_to_semitones = function (frequency) {
     return midi_pitch_to_frequency(frequency_to_nearest_midi_pitch(frequency));
@@ -436,6 +445,28 @@ function draw_phrase (phrase, phrase_index) {
       }
       drag_move = null;
       drag_select = null;
+    });
+    
+    document.addEventListener ("keydown", function (event) {
+      if (event.key == "ArrowLeft" || event.key == "ArrowRight" || event.key == "ArrowUp" || event.key == "ArrowDown") {
+        for_selected (note => {
+          if (event.key == "ArrowLeft") {
+            let grid_shift = metadata.snap_time_to_grid(note.start - metadata.grid_step_size()) - note.start;
+            note.start += grid_shift; note.end += grid_shift;
+          }
+          if (event.key == "ArrowRight") {
+            let grid_shift = metadata.snap_time_to_grid(note.start + metadata.grid_step_size()) - note.start;
+            note.start += grid_shift; note.end += grid_shift;
+          }
+          if (event.key == "ArrowUp") {
+            note.frequency = metadata.snap_frequency_to_semitones (note.frequency * semitone_ratio);
+          }
+          if (event.key == "ArrowDown") {
+            note.frequency = metadata.snap_frequency_to_semitones (note.frequency / semitone_ratio);
+          }
+        });
+        changed();
+      }
     });
   }
   
