@@ -9,14 +9,21 @@ function push_input (input) {
   songs.push_gui_input (JSON.stringify(input));
 }
 
+function iterate_keys (keys, callback) {
+  Object.getOwnPropertyNames (keys).forEach(callback);
+}
+function iterate_values (keys, callback) {
+  Object.getOwnPropertyNames (keys).forEach(key=>{callback(keys[key], key)});
+}
+
 let semitone_ratio = Math.pow (2, 1/12);
 let sqrt_semitone_ratio = Math.pow (2, 1/24);
 let log_semitone_ratio = Math.log (semitone_ratio);
 
-let redraw_phrases = [];
-let playback_position;
+let phrases_metadata = {}
 let playback_start = 0.0;
 let playback_end = 10.0;
+let playback_position = 0.0;
 
 function midi_pitch_to_frequency(pitch) {
   return 440.0*semitone_ratio.pow(pitch-69);
@@ -25,11 +32,11 @@ function frequency_to_nearest_midi_pitch(frequency) {
   return 69 + Math.round(Math.log(frequency/440.0)/log_semitone_ratio);
 }
 
-function draw_phrase (phrase) {
-  let result = document.createElement ("div");
+function draw_phrase (phrase, phrase_index) {
+  let div = document.createElement ("div");
   let canvas = document.createElement ("canvas");
   let context = canvas.getContext ("2d");
-  result.appendChild (canvas) ;
+  div.appendChild (canvas) ;
   let min_time = 0.0;
   let max_time = 4.0;
   let min_frequency = 130.0;
@@ -39,11 +46,7 @@ function draw_phrase (phrase) {
     max_time = Math.max (max_time, note.end + 1);
     min_frequency = Math.min (min_frequency, note.frequency);
     max_frequency = Math.max (max_frequency, note.frequency);
-    
-    note.index = index;
   });
-  
-  //if (min_time > max_time) { return result; }
   
   let time_width = max_time - min_time;
   let log_min_frequency = Math.log (min_frequency) - log_semitone_ratio*12.5;
@@ -90,11 +93,11 @@ function draw_phrase (phrase) {
     result.on_canvas_vertically = (result.canvas_y_downwards >= 0 && result.canvas_y_downwards <= height);
     result.on_canvas = result.on_canvas_horizontally && result.on_canvas_vertically;
     return result;
-  }
+  };
   
   let mouse_coordinates = function (event) {
     return get_coordinates(event.pageX - canvas.offsetLeft, event.pageY - canvas.offsetTop);
-  }
+  };
   
   let get_overlapping_note = function (coordinates) {
     return phrase.data.notes.find(function(note) {
@@ -105,20 +108,34 @@ function draw_phrase (phrase) {
         return true;
       }
     }) || null;
-  }
+  };
   let get_overlapping_notes = function (x1,y1,x2,y2) {
     return phrase.data.notes.filter(function(note) {
-      console.log (x1,y1,x2,y2, note) ;
-      console.log (note.coordinates.canvas_min_x < x1,note.coordinates.canvas_min_x < x2,note.coordinates.canvas_max_x > x1,note.coordinates.canvas_max_x > x2,note.coordinates.canvas_min_y_downwards < y1,note.coordinates.canvas_min_y_downwards < y2,note.coordinates.canvas_max_y_downwards > y1,note.coordinates.canvas_max_y_downwards > y2) ;
-      if ( (note.coordinates.canvas_min_x < x1 || note.coordinates.canvas_min_x < x2)
-        && (note.coordinates.canvas_max_x > x1 || note.coordinates.canvas_max_x > x2)
-        && (note.coordinates.canvas_min_y_downwards < y1 || note.coordinates.canvas_min_y_downwards < y2)
-        && (note.coordinates.canvas_max_y_downwards > y1 || note.coordinates.canvas_max_y_downwards > y2)) {
+      //console.log (x1,y1,x2,y2, note) ;
+      /*console.log (
+        note.coordinates.canvas_min_x < x1,
+        note.coordinates.canvas_min_x < x2,
+        note.coordinates.canvas_max_x > x1,
+        note.coordinates.canvas_max_x > x2,
+        note.coordinates.canvas_min_y_downwards < y1,
+        note.coordinates.canvas_min_y_downwards < y2,
+        note.coordinates.canvas_max_y_downwards > y1,
+        note.coordinates.canvas_max_y_downwards > y2) ;*/
+      if ( (note.coordinates.canvas_min_x < x1 ||
+            note.coordinates.canvas_min_x < x2)
+        && (note.coordinates.canvas_max_x > x1 ||
+            note.coordinates.canvas_max_x > x2)
+        && (note.coordinates.canvas_min_y_downwards < y1 ||
+            note.coordinates.canvas_min_y_downwards < y2)
+        && (note.coordinates.canvas_max_y_downwards > y1 ||
+            note.coordinates.canvas_max_y_downwards > y2)
+        ) {
+        //console.log (x1,y1,x2,y2, note) ;
         return true;
       }
       return false;
     });
-  }
+  };
   
   let drag_select = null;
   let drag_move = null;
@@ -175,7 +192,7 @@ function draw_phrase (phrase) {
     }
   };
   
-  if (phrase.timed_with_playback && phrase.editing_id === null) {
+  if (phrase.timed_with_playback && !phrase.editable) {
   let dragging_mouse_original_time = null;
   let dragging_start;
   let dragging_original_start;
@@ -213,21 +230,19 @@ function draw_phrase (phrase) {
   });
   }
   
-  if (phrase.editing_id !== null) {
-    //console.log ( [phrase.editing_id, phrase.data]);
-    
-    
+  if (phrase.editable) {
     
     let changed = function() { push_input ({
-      "EditPhrase": [phrase.editing_id, phrase.data],
+      "EditPhrase": [phrase_index, phrase.data],
     }); };
     let for_selected = function (callback) {
-      Object.getOwnPropertyNames (selected_notes).forEach(function(index) {
+      iterate_keys (selected_notes, function(index) {
         callback (phrase.data.notes [index]);
       });
     };
     
     let modify_selection = function (notes, event) {
+      console.log(notes);
       if (!event.shiftKey && !event.ctrlKey) {
         selected_notes = {};
       }
@@ -248,10 +263,9 @@ function draw_phrase (phrase) {
       let overlapping = get_overlapping_note (coordinates);
       //console.log (coordinates, overlapping ) ;
       if (overlapping === null && event.shiftKey) {
-        let note = {start: coordinates.time, end: coordinates.time +1, frequency: coordinates.frequency, tags: []};
+        let note = {start: coordinates.time, end: coordinates.time +1, frequency: coordinates.frequency, tags: [], index: phrase.data.notes.length};
         note.coordinates = note_coordinates(note);
         phrase.data.notes.push (note);
-        //console.log ( [phrase.editing_id, phrase.data]);
         changed();
       }
       else if (overlapping !== null) {
@@ -275,12 +289,12 @@ function draw_phrase (phrase) {
       }
     });
     
-    canvas.addEventListener ("mousemove", function (event) {
+    document.addEventListener ("mousemove", function (event) {
       let coordinates = mouse_coordinates (event);
       (drag_select || drag_move || {}).current_coordinates = coordinates;
     });
     
-    canvas.addEventListener ("mouseup", function (event) {
+    document.addEventListener ("mouseup", function (event) {
       let coordinates = mouse_coordinates (event);
       if (drag_move) {
         if (coordinates.on_canvas) {
@@ -293,11 +307,13 @@ function draw_phrase (phrase) {
       }
       
       if (drag_select) {
-        modify_selection (get_overlapping_notes (
+        let notes = get_overlapping_notes (
           drag_select.original_coordinates.canvas_x,
           drag_select.original_coordinates.canvas_y_downwards,
           drag_select.current_coordinates.canvas_x,
-          drag_select.current_coordinates.canvas_y_downwards), drag_select.event);
+          drag_select.current_coordinates.canvas_y_downwards);
+        
+        modify_selection (notes, drag_select.event);
         
         drag_select = null;
       }
@@ -306,29 +322,39 @@ function draw_phrase (phrase) {
   
   //redraw();
   
-  return [result, redraw];
+  return {
+    element: div,
+    redraw: redraw,
+  };
 }
 
 function update() {
   let updates = JSON.parse(songs.poll_updates());
+  let phrases_element = document.getElementById ("phrases");
   updates.forEach(function(update) {
-    if (update.ReplacePhrases) {
-      let phrases_element = document.getElementById ("phrases");
-      phrases_element.innerHTML = "";
-      redraw_phrases = [];
-      update.ReplacePhrases.forEach(function(phrase) {
-        let drawn = draw_phrase (phrase);
-        phrases_element.appendChild (drawn[0]);
-        redraw_phrases.push(drawn[1]);
-      });
+    if (update.ReplacePhrase) {
+      //console.log (update);
+      let index = update.ReplacePhrase [0];
+      let phrase = update.ReplacePhrase[1];
+
+      if (phrases_metadata[index]) {
+        let element = phrases_metadata[index].element;
+        element.parentNode.removeChild (element);
+        delete phrases_metadata[index];
+      }
+      if (phrase !== null) {
+        let drawn = draw_phrase (phrase, index);
+        phrases_element.appendChild (drawn.element);
+        phrases_metadata[index] = drawn;
+      }
     }
     if (update.UpdatePlaybackPosition) {
       playback_position = update.UpdatePlaybackPosition;
     }
   });
   
-  redraw_phrases.forEach(function(redraw) {
-    redraw();
+  iterate_values (phrases_metadata, function(metadata) {
+    metadata.redraw();
   });
 }
 
