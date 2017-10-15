@@ -249,10 +249,11 @@ function draw_phrase (phrase, phrase_index) {
     context.strokeStyle = "#00f";
     
     phrase.data.notes.forEach(function(note) {
-      if (drag_move && drag_move.dragged_notes [note.index]) {
+      let dragged = drag_move && drag_move.dragged_notes [note.index];
+      if (dragged) {
         draw_note (dragged_note (note));
       }
-      else {
+      if (!(dragged && !drag_move.event.shiftKey)) {
         draw_note (note);
       }
     });
@@ -344,6 +345,15 @@ function draw_phrase (phrase, phrase_index) {
       }
     }
     
+    let create_note = function (note) {
+      note.index = phrase.data.notes.length;
+      note.coordinates = note_coordinates(note);
+      phrase.data.notes.push (note);
+    }
+    let copy_note = function (note) {
+      return Object.assign({}, note, {tags: note.tags.slice(0)});
+    }
+    
     canvas.addEventListener ("mousedown", function (event) {
       if (drag_move || drag_select) {return;}
       let coordinates = mouse_coordinates (event);
@@ -378,7 +388,6 @@ function draw_phrase (phrase, phrase_index) {
       let drag = (drag_select || drag_move);
       
       if (drag && drag.maybe_click) {
-        let coordinates = mouse_coordinates (event);
         let overlapping = get_overlapping_note (coordinates);
         //console.log (coordinates, overlapping ) ;
         if (overlapping === null && event.shiftKey) {
@@ -387,10 +396,9 @@ function draw_phrase (phrase, phrase_index) {
             end: metadata.snap_time_to_grid(coordinates.time) +1,
             frequency: metadata.snap_frequency_to_semitones (coordinates.frequency),
             tags: [],
-            index: phrase.data.notes.length
+            
           };
-          note.coordinates = note_coordinates(note);
-          phrase.data.notes.push (note);
+          create_note(note);
           changed();
         }
         else if (overlapping !== null) {
@@ -402,10 +410,18 @@ function draw_phrase (phrase, phrase_index) {
       }
       else if (drag_move) {
         if (coordinates.on_canvas) {
-          iterate_keys(drag_move.dragged_notes, index => {
-            let note = phrase.data.notes [index];
-            phrase.data.notes [note.index] = dragged_note (note);
-          });
+          if (drag_move.event.shiftKey) {
+            iterate_keys(drag_move.dragged_notes, index => {
+              let note = phrase.data.notes [index];
+              create_note(copy_note(dragged_note (note)));
+            });
+          } else {
+            iterate_keys(drag_move.dragged_notes, index => {
+              let note = phrase.data.notes [index];
+              phrase.data.notes [note.index] = dragged_note (note);
+            });
+          }
+
           changed();
         }
       }
