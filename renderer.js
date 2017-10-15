@@ -144,7 +144,7 @@ function draw_phrase (phrase, phrase_index) {
     let result = Object.assign({}, note, {
       start: note.start + drag_move.current_coordinates.time - drag_move.original_coordinates.time,
       end: note.end + drag_move.current_coordinates.time - drag_move.original_coordinates.time,
-      frequency: note.frequency + drag_move.current_coordinates.frequency - drag_move.original_coordinates.frequency,
+      frequency: note.frequency * drag_move.current_coordinates.frequency / drag_move.original_coordinates.frequency,
     });
     result.coordinates = note_coordinates (result);
     return result;
@@ -257,56 +257,60 @@ function draw_phrase (phrase, phrase_index) {
         });
       }
     }
-        
-    canvas.addEventListener ("click", function (event) {
-      let coordinates = mouse_coordinates (event);
-      let overlapping = get_overlapping_note (coordinates);
-      //console.log (coordinates, overlapping ) ;
-      if (overlapping === null && event.shiftKey) {
-        let note = {start: coordinates.time, end: coordinates.time +1, frequency: coordinates.frequency, tags: [], index: phrase.data.notes.length};
-        note.coordinates = note_coordinates(note);
-        phrase.data.notes.push (note);
-        changed();
-      }
-      else if (overlapping !== null) {
-        modify_selection ([overlapping], event);
-      }
-      else {
-        modify_selection ([], event);
-      }
-    });
-    
-    
     
     canvas.addEventListener ("mousedown", function (event) {
+      if (drag_move || drag_select) {return;}
       let coordinates = mouse_coordinates (event);
       let overlapping = get_overlapping_note (coordinates);
       if (overlapping === null) {
-        drag_select = {event: event, original_coordinates: coordinates, current_coordinates: coordinates};
+        drag_select = {event: event, original_coordinates: coordinates, current_coordinates: coordinates, maybe_click: true};
       }
       else {
-        drag_move = {event: event, original_coordinates: coordinates, current_coordinates: coordinates};
+        drag_move = {event: event, original_coordinates: coordinates, current_coordinates: coordinates, maybe_click: true};
       }
     });
     
     document.addEventListener ("mousemove", function (event) {
       let coordinates = mouse_coordinates (event);
-      (drag_select || drag_move || {}).current_coordinates = coordinates;
+      let drag = (drag_select || drag_move);
+      if (drag) {
+        drag.current_coordinates = coordinates;
+        if (Math.max(Math.abs (drag.current_coordinates.canvas_x - drag.original_coordinates.canvas_x), Math.abs (drag.current_coordinates.canvas_y_downwards - drag.original_coordinates.canvas_y_downwards)) > 2) {
+          drag.maybe_click = false;
+        }
+      }
     });
     
     document.addEventListener ("mouseup", function (event) {
       let coordinates = mouse_coordinates (event);
-      if (drag_move) {
+      let drag = (drag_select || drag_move);
+      
+      if (drag && drag.maybe_click) {
+        let coordinates = mouse_coordinates (event);
+        let overlapping = get_overlapping_note (coordinates);
+        //console.log (coordinates, overlapping ) ;
+        if (overlapping === null && event.shiftKey) {
+          let note = {start: coordinates.time, end: coordinates.time +1, frequency: coordinates.frequency, tags: [], index: phrase.data.notes.length};
+          note.coordinates = note_coordinates(note);
+          phrase.data.notes.push (note);
+          changed();
+        }
+        else if (overlapping !== null) {
+          modify_selection ([overlapping], event);
+        }
+        else {
+          modify_selection ([], event);
+        }
+      }
+      else if (drag_move) {
         if (coordinates.on_canvas) {
           for_selected (note => {
             phrase.data.notes [note.index] = dragged_note (note);
           });
           changed();
         }
-        drag_move = null;
       }
-      
-      if (drag_select) {
+      else if (drag_select) {
         let notes = get_overlapping_notes (
           drag_select.original_coordinates.canvas_x,
           drag_select.original_coordinates.canvas_y_downwards,
@@ -314,9 +318,9 @@ function draw_phrase (phrase, phrase_index) {
           drag_select.current_coordinates.canvas_y_downwards);
         
         modify_selection (notes, drag_select.event);
-        
-        drag_select = null;
       }
+      drag_move = null;
+      drag_select = null;
     });
   }
   
