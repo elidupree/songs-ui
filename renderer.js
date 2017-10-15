@@ -70,7 +70,27 @@ function draw_phrase (phrase, phrase_index) {
   let options = document.createElement ("div");
   div.appendChild (options) ;
   
+  options.innerHTML = `
+  Grid increment:
+  <input type="number" id="${phrase_index}_grid_numerator" value=1 min=1 max=100 step=1 />
+  /
+  <input type="number" id="${phrase_index}_grid_denominator" value=4 min=1 max=100 step=1 />
+  seconds.
+  `
   
+  metadata.snap_time_to_grid = function (time) {
+    metadata.grid_numerator_input = document.getElementById (`${phrase_index}_grid_numerator`);
+    metadata.grid_denominator_input = document.getElementById (`${phrase_index}_grid_denominator`);
+    let numerator = metadata.grid_numerator_input.valueAsNumber;
+    let denominator = metadata.grid_denominator_input.valueAsNumber;
+    if (numerator === 0 || denominator === 0 || isNaN (numerator) || isNaN (denominator)) {return time;}
+    let increments = Math.round (time*denominator/numerator);
+    //console.log (time, increments, numerator, denominator);
+    return increments*numerator/denominator;
+  };
+  metadata.snap_frequency_to_semitones = function (frequency) {
+    return midi_pitch_to_frequency(frequency_to_nearest_midi_pitch(frequency));
+  };
   
   metadata.update_dimensions = function() {
     metadata.min_time = 0.0;
@@ -190,6 +210,12 @@ function draw_phrase (phrase, phrase_index) {
       end: note.end + drag_move.current_coordinates.time - drag_move.original_coordinates.time,
       frequency: note.frequency * drag_move.current_coordinates.frequency / drag_move.original_coordinates.frequency,
     });
+    
+    let grid_shift = metadata.snap_time_to_grid(result.start) - result.start;
+    result.start += grid_shift; result.end += grid_shift;
+    
+    result.frequency = metadata.snap_frequency_to_semitones (result.frequency);
+    
     result.coordinates = note_coordinates (result);
     return result;
   };
@@ -356,7 +382,13 @@ function draw_phrase (phrase, phrase_index) {
         let overlapping = get_overlapping_note (coordinates);
         //console.log (coordinates, overlapping ) ;
         if (overlapping === null && event.shiftKey) {
-          let note = {start: coordinates.time, end: coordinates.time +1, frequency: coordinates.frequency, tags: [], index: phrase.data.notes.length};
+          let note = {
+            start: metadata.snap_time_to_grid(coordinates.time),
+            end: metadata.snap_time_to_grid(coordinates.time) +1,
+            frequency: metadata.snap_frequency_to_semitones (coordinates.frequency),
+            tags: [],
+            index: phrase.data.notes.length
+          };
           note.coordinates = note_coordinates(note);
           phrase.data.notes.push (note);
           changed();
