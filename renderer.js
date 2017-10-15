@@ -42,28 +42,33 @@ function draw_phrase (phrase, phrase_index) {
   let canvas = document.createElement ("canvas");
   let context = canvas.getContext ("2d");
   div.appendChild (canvas) ;
-  metadata.min_time = 0.0;
-  metadata.max_time = 4.0;
-  metadata.min_frequency = 130.0;
-  metadata.max_frequency = 880.0;
-  phrase.data.notes.forEach(function(note, index) {
-    metadata.min_time = Math.min (metadata.min_time, note.start - 1);
-    metadata.max_time = Math.max (metadata.max_time, note.end + 1);
-    metadata.min_frequency = Math.min (metadata.min_frequency, note.frequency);
-    metadata.max_frequency = Math.max (metadata.max_frequency, note.frequency);
-  });
   
-  metadata.time_width = metadata.max_time - metadata.min_time;
-  metadata.log_min_frequency = Math.log (metadata.min_frequency) - log_semitone_ratio*12.5;
-  metadata.log_max_frequency = Math.log (metadata.max_frequency) + log_semitone_ratio*12.5;
-  metadata.log_frequency_ratio = metadata.log_max_frequency - metadata.log_min_frequency;
-  metadata.height_in_semitones = metadata.log_frequency_ratio/log_semitone_ratio;
-  
-  metadata.width = metadata.time_width*time_scale;
-  metadata.height = metadata.height_in_semitones*semitone_scale;
-   
-  canvas.setAttribute ("width", metadata.width);
-  canvas.setAttribute ("height", metadata.height);
+  metadata.update_dimensions = function() {
+    metadata.min_time = 0.0;
+    metadata.max_time = 4.0;
+    metadata.min_frequency = 130.0;
+    metadata.max_frequency = 880.0;
+    phrase.data.notes.forEach(function(note, index) {
+      metadata.min_time = Math.min (metadata.min_time, note.start - 1);
+      metadata.max_time = Math.max (metadata.max_time, note.end + 1);
+      metadata.min_frequency = Math.min (metadata.min_frequency, note.frequency);
+      metadata.max_frequency = Math.max (metadata.max_frequency, note.frequency);
+    });
+    
+    metadata.time_width = metadata.max_time - metadata.min_time;
+    metadata.log_min_frequency = Math.log (metadata.min_frequency) - log_semitone_ratio*12.5;
+    metadata.log_max_frequency = Math.log (metadata.max_frequency) + log_semitone_ratio*12.5;
+    metadata.log_frequency_ratio = metadata.log_max_frequency - metadata.log_min_frequency;
+    metadata.height_in_semitones = metadata.log_frequency_ratio/log_semitone_ratio;
+    
+    metadata.width = metadata.time_width*time_scale;
+    metadata.height = metadata.height_in_semitones*semitone_scale;
+     
+    canvas.setAttribute ("width", metadata.width);
+    canvas.setAttribute ("height", metadata.height);
+    
+    metadata.redraw();
+  }
   
   let note_coordinates = function (note, target) {
     let result = target || {};
@@ -169,7 +174,7 @@ function draw_phrase (phrase, phrase_index) {
     context.strokeStyle = "#00f";
     
     phrase.data.notes.forEach(function(note) {
-      if (drag_move && selected_notes [note.index]) {
+      if (drag_move && drag_move.dragged_notes [note.index]) {
         draw_note (dragged_note (note));
       }
       else {
@@ -234,9 +239,12 @@ function draw_phrase (phrase, phrase_index) {
   
   if (phrase.editable) {
     
-    let changed = function() { push_input ({
-      "EditPhrase": [phrase_index, phrase.data],
-    }); };
+    let changed = function() {
+      metadata.update_dimensions();
+      push_input ({
+        "EditPhrase": [phrase_index, phrase.data],
+      });
+    };
     let for_selected = function (callback) {
       iterate_keys (selected_notes, function(index) {
         callback (phrase.data.notes [index]);
@@ -268,7 +276,13 @@ function draw_phrase (phrase, phrase_index) {
         drag_select = {event: event, original_coordinates: coordinates, current_coordinates: coordinates, maybe_click: true};
       }
       else {
-        drag_move = {event: event, original_coordinates: coordinates, current_coordinates: coordinates, maybe_click: true};
+        drag_move = {event: event, original_coordinates: coordinates, current_coordinates: coordinates, maybe_click: true, reference_note: overlapping};
+        if (selected_notes [overlapping.index]) {
+          drag_move.dragged_notes = selected_notes;
+        }
+        else {
+          drag_move.dragged_notes = {[overlapping.index]: true};
+        }
       }
     });
     
@@ -306,7 +320,8 @@ function draw_phrase (phrase, phrase_index) {
       }
       else if (drag_move) {
         if (coordinates.on_canvas) {
-          for_selected (note => {
+          iterate_keys(drag_move.dragged_notes, index => {
+            let note = phrase.data.notes [index];
             phrase.data.notes [note.index] = dragged_note (note);
           });
           changed();
@@ -327,6 +342,7 @@ function draw_phrase (phrase, phrase_index) {
   }
   
   //redraw();
+  metadata.update_dimensions();
   
   return metadata;
 }
