@@ -534,10 +534,17 @@ function draw_phrase (phrase, phrase_index) {
       else if (drag_move) {
         if (coordinates.on_canvas) {
           if (drag_move.event.shiftKey) {
+            let old_length = phrase.data.notes.length;
             iterate_keys(drag_move.dragged_notes, index => {
               let note = phrase.data.notes [index];
               create_note(copy_note(dragged_note (note)));
             });
+            if (drag_move.dragged_notes === selected_notes) {
+              selected_notes = {}
+              for (let i = old_length; i < phrase.data.notes.length; ++i) {
+                selected_notes[i] = true;
+              }
+            }
           } else {
             iterate_keys(drag_move.dragged_notes, index => {
               let note = phrase.data.notes [index];
