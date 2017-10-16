@@ -167,10 +167,14 @@ function draw_phrase (phrase, phrase_index) {
     return result;
   };
   
+  let time_position = function (time) {
+    return (time - metadata.min_time) * time_scale;
+  };
+  
   let note_coordinates = function (note, target) {
     let result = target || {};
-    result.canvas_min_x = (note.start - metadata.min_time) * time_scale;
-    result.canvas_max_x = (note.end - metadata.min_time) * time_scale;
+    result.canvas_min_x = time_position(note.start);
+    result.canvas_max_x = time_position(note.end);
     result.canvas_width = result.canvas_max_x - result.canvas_min_x;
     result.log_frequency = Math.log (note.frequency);
     let midh = metadata.log_max_frequency - result.log_frequency;
@@ -294,6 +298,12 @@ function draw_phrase (phrase, phrase_index) {
         context.fillStyle = "#ddd";
       }
       context.fillRect(0, frequency_position (midi_pitch_to_frequency(semitones+0.5)).canvas_y_downwards,metadata.width, semitone_scale);
+    }
+    
+    let step = metadata.grid_step_size();
+    for (let time = Math.ceil(metadata.min_time/step)*step; time <metadata.max_time; time += step) {
+      context.fillStyle = "#ccc";
+      context.fillRect(time_position(time), 0, 1, metadata.height);
     }
     
     context.fillStyle = "#000";
