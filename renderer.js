@@ -2,7 +2,9 @@
 // be executed in the renderer process for that window.
 // All of the Node.js APIs are available in this process.
 
+const electron = require('electron');
 const songs = require('codecophony-render-gui');
+const filesystem = require ("fs");
 // document.write(songs.poll_rendered());
 
 function push_input (input) {
@@ -89,6 +91,18 @@ function discover_tag (tag) {
     }
     
 function draw_phrase (phrase, phrase_index) {
+  let path;
+  let did_load = false;
+  console.log(electron.remote.process.argv)
+  if (phrase.editable && electron.remote.process.argv.length > 2) {
+    path = electron.remote.process.argv[2]+phrase_index+".json";
+    try {
+      let loaded = JSON.parse (filesystem.readFileSync (path));
+      if (loaded) {phrase.data = loaded; did_load = true;}
+    } catch(e){console.log(e)}
+  }
+
+
   let metadata = {phrase};
   let div = metadata.element = document.createElement ("div");
   let canvas = document.createElement ("canvas");
@@ -447,6 +461,10 @@ function draw_phrase (phrase, phrase_index) {
       update_tags();
       metadata.update_dimensions();
       metadata.redraw();
+      try {
+        console.log(path)
+        filesystem.writeFileSync (path, JSON.stringify(phrase.data));
+      } catch(e){console.log(e)}
     };
     
     
@@ -595,7 +613,8 @@ function draw_phrase (phrase, phrase_index) {
         changed();
       }
     });
-
+    
+    if (did_load) {setImmediate(()=>changed());}
   }
   
   //redraw();
