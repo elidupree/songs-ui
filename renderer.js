@@ -60,6 +60,31 @@ let time_scale = 80;
 let semitone_scale = 10;
 let log_frequency_scale = semitone_scale/log_semitone_ratio;
 
+function to_rgb(color) {
+  return {
+    red: parseInt (color.substring (1, 3), 16),
+    green: parseInt (color.substring (3, 5), 16),
+    blue: parseInt (color.substring (5, 7), 16),
+  };
+}
+
+function to_css_color (color) {
+  return `rgb(${Math.round(color.red)}, ${Math.round(color.green)}, ${Math.round(color.blue)})`;
+}
+
+let tags = {};
+function discover_tag (tag) {
+  let result = tags [tag];
+  if (!result) {
+    result = tags [tag] = {
+      red: Math.random()*200+30, blue: Math.random()*200+30, green: Math.random()*200+30,
+      tag: tags,
+    };
+  }
+  return result;
+}
+
+
 function draw_phrase (phrase, phrase_index) {
   let metadata = {phrase};
   let div = metadata.element = document.createElement ("div");
@@ -77,6 +102,11 @@ function draw_phrase (phrase, phrase_index) {
   <input type="number" id="${phrase_index}_grid_denominator" value=4 min=1 max=100 step=1 />
   seconds.
   `
+  
+  let tags_box;
+  $(options).append(
+    tags_box = $("<div>"),
+  );
   
   metadata.grid_inputs = function() {
     return {
@@ -228,9 +258,22 @@ function draw_phrase (phrase, phrase_index) {
     result.coordinates = note_coordinates (result);
     return result;
   };
+  
   let draw_note = function(note) {
     let coordinates = note.coordinates;
     
+    let color = to_rgb("#000000");
+    note.tags.forEach(function(tag) {
+      let info = discover_tag (tag);
+      color.red += info.red; color.blue += info.blue; color.green += info.green;
+    });
+    //console.log (color);
+    if (note.tags.length > 0) {
+      color.red /= note.tags.length; color.blue /= note.tags.length; color.green /= note.tags.length;
+    }
+    //console.log (color);
+    //console.log (to_css_color(color));
+    context.fillStyle = to_css_color(color);
     context.fillRect(coordinates.canvas_min_x, coordinates.canvas_min_y_downwards, coordinates.canvas_width, coordinates.canvas_height);
     if (selected_notes [note.index]) {
       context.strokeRect(coordinates.canvas_min_x, coordinates.canvas_min_y_downwards, coordinates.canvas_width, coordinates.canvas_height);
@@ -323,19 +366,71 @@ function draw_phrase (phrase, phrase_index) {
   }
   
   if (phrase.editable) {
-    
-    let changed = function() {
-      push_input ({
-        "EditPhrase": [phrase_index, phrase.data],
-      });
-      metadata.update_dimensions();
-      metadata.redraw();
-    };
+    let this_phrase_tags = {}
     let for_selected = function (callback) {
       iterate_keys (selected_notes, function(index) {
         callback (phrase.data.notes [index]);
       });
     };
+    
+    function add_tag_chooser (tag) {
+      if (!this_phrase_tags[tag]) {
+        let info = discover_tag (tag);
+        let checkbox;
+        tags_box.append($("<div>").append(
+          checkbox = $("<input>", {type:"checkbox"}).on("change", e=>{
+            for_selected(note=>{
+              note.tags = note.tags.filter (tagg => tagg != tag);
+              if (checkbox.prop('checked')) {
+                note.tags.push(tag);
+              }
+            });
+          }), ` ${tag}`
+        ));
+        this_phrase_tags[tag] = {checkbox};
+      }
+    }
+        
+    let update_selected_tags = function() {
+      iterate_values (this_phrase_tags, info => {
+        info.checkbox.prop('checked', false);
+      });
+      for_selected (note => {
+        note.tags.forEach(function(tag) {
+          this_phrase_tags[tag].checkbox.prop('checked', true);
+        });
+      });
+    }
+    
+    let update_tags = function() {
+      phrase.data.notes.forEach(function(note) {
+        note.tags.forEach(add_tag_chooser);
+      });
+      update_selected_tags();
+    };
+
+    
+    let new_tag_textbox;
+    tags_box.append("New tag: ",
+      new_tag_textbox = $("<input>", {type:"text"}),
+      $("<input>", {type:"button"}).click (e=>{
+        add_tag_chooser (new_tag_textbox.val())
+      }),
+    );
+    
+    update_tags();
+    
+    
+    let changed = function() {
+      
+      push_input ({
+        "EditPhrase": [phrase_index, phrase.data],
+      });
+      update_tags();
+      metadata.update_dimensions();
+      metadata.redraw();
+    };
+    
     
     let modify_selection = function (notes, event) {
       //console.log(notes);
@@ -352,6 +447,7 @@ function draw_phrase (phrase, phrase_index) {
           selected_notes[note.index] = true;
         });
       }
+      update_selected_tags();
     }
     
     let create_note = function (note) {
@@ -467,7 +563,14 @@ function draw_phrase (phrase, phrase_index) {
         });
         changed();
       }
+      
+      if (event.key === "Delete" || event.key === "Backspace") {
+        phrase.data.notes = phrase.data.notes.filter (note => !selected_notes [note.index]);
+        selected_notes = {} ;
+        changed();
+      }
     });
+
   }
   
   //redraw();
