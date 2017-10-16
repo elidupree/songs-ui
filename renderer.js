@@ -84,7 +84,10 @@ function discover_tag (tag) {
   return result;
 }
 
-
+    let copy_note = function (note) {
+      return Object.assign({}, note, {tags: note.tags.slice(0)});
+    }
+    
 function draw_phrase (phrase, phrase_index) {
   let metadata = {phrase};
   let div = metadata.element = document.createElement ("div");
@@ -248,16 +251,20 @@ function draw_phrase (phrase, phrase_index) {
   let drag_move = null;
   let selected_notes = {};
   let dragged_note = function (note) {
-    let result = Object.assign({}, note, {
-      start: note.start + drag_move.current_coordinates.time - drag_move.original_coordinates.time,
-      end: note.end + drag_move.current_coordinates.time - drag_move.original_coordinates.time,
-      frequency: note.frequency * drag_move.current_coordinates.frequency / drag_move.original_coordinates.frequency,
-    });
+    let result = copy_note(note);
     
-    let grid_shift = metadata.snap_time_to_grid(result.start) - result.start;
-    result.start += grid_shift; result.end += grid_shift;
-    
-    result.frequency = metadata.snap_frequency_to_semitones (result.frequency);
+    if (drag_move.ends_only) {
+      let time_shift = metadata.snap_time_to_grid(drag_move.reference_note.end + drag_move.current_coordinates.time - drag_move.original_coordinates.time) - drag_move.reference_note.end;
+      result.end += time_shift;
+      result.end = Math.max(result.end, Math.min(note.end, result.start + metadata.grid_step_size()));
+    }
+    else {
+      let time_shift = metadata.snap_time_to_grid(drag_move.reference_note.start + drag_move.current_coordinates.time - drag_move.original_coordinates.time) - drag_move.reference_note.start;
+      result.start += time_shift; result.end += time_shift;
+      
+      let frequency_shift = metadata.snap_frequency_to_semitones (drag_move.reference_note.frequency * drag_move.current_coordinates.frequency / drag_move.original_coordinates.frequency) / drag_move.reference_note.frequency;
+      result.frequency *= frequency_shift;
+    }
     
     result.coordinates = note_coordinates (result);
     return result;
@@ -465,9 +472,6 @@ function draw_phrase (phrase, phrase_index) {
       note.coordinates = note_coordinates(note);
       phrase.data.notes.push (note);
     }
-    let copy_note = function (note) {
-      return Object.assign({}, note, {tags: note.tags.slice(0)});
-    }
     
     canvas.addEventListener ("mousedown", function (event) {
       if (drag_move || drag_select) {return;}
@@ -483,6 +487,9 @@ function draw_phrase (phrase, phrase_index) {
         }
         else {
           drag_move.dragged_notes = {[overlapping.index]: true};
+        }
+        if (coordinates.time > (overlapping.start*1/4 + overlapping.end*3/4)) {
+          drag_move.ends_only = true;
         }
       }
     });
