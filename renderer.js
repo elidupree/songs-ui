@@ -144,6 +144,7 @@ function draw_phrase (phrase, phrase_index) {
       metadata.max_time = Math.max (metadata.max_time, note.end + 1);
       metadata.min_frequency = Math.min (metadata.min_frequency, note.frequency*Math.pow(semitone_ratio, -12.5));
       metadata.max_frequency = Math.max (metadata.max_frequency, note.frequency*Math.pow(semitone_ratio, 12.5));
+      note.index = index;
     });
     
     metadata.time_width = metadata.max_time - metadata.min_time;
