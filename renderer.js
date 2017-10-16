@@ -417,6 +417,7 @@ function draw_phrase (phrase, phrase_index) {
                 note.tags.push(tag);
               }
             });
+            changed();
           }), ` ${tag}`
         ));
         this_phrase_tags[tag] = {checkbox};
