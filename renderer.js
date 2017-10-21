@@ -40,7 +40,7 @@ function semitones_to_note_info (semitones) {
   return note_info [(semitones+48) % 12];
 }
 function semitones_to_note_name (semitones) {
-  return semitones_to_note_info (semitones) + (Math.floor ((semitones+48)/12)).toString();
+  return semitones_to_note_info (semitones).name + (Math.floor ((semitones+48)/12)).toString();
 }
 
 let phrases_metadata = {}
@@ -319,7 +319,10 @@ function draw_phrase (phrase, phrase_index) {
       if (color == "black") {
         context.fillStyle = "#ddd";
       }
-      context.fillRect(0, frequency_position (midi_pitch_to_frequency(semitones+0.5)).canvas_y_downwards,metadata.width, semitone_scale);
+      let freq_top = frequency_position (midi_pitch_to_frequency(semitones+0.5)).canvas_y_downwards;
+      context.fillRect(0, freq_top, metadata.width, semitone_scale);
+      context.fillStyle = "#000";
+      context.fillText(`${semitones} (${semitones_to_note_name(semitones)})`, 2, freq_top + semitone_scale);
     }
     
     let step = metadata.grid_step_size();
