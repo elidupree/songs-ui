@@ -9,12 +9,16 @@
     
     <script>if (typeof module === 'object') {window.module = module; module = undefined;}</script>
 
+    <script src="./lodash.core.js"></script>
     <script src="./jquery-3.2.1.min.js"></script>
     
     <script>if (window.module) module = window.module;</script>
     
     <script>
-      require('./renderer.js')
+      require('./utils.js')
+      require('./project_data.js')
+      require('./note_rendering.js')
+      require('./phrase_ui.js')
     </script>
   </body>
 </html>
