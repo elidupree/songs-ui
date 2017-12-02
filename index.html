@@ -15,10 +15,18 @@
     <script>if (window.module) module = window.module;</script>
     
     <script>
+      const electron = require('electron');
+      
       require('./utils.js')
       require('./project_data.js')
       require('./note_rendering.js')
       require('./phrase_ui.js')
+      
+      if (electron.remote.process.argv.length > 2) {
+        path = electron.remote.process.argv[2];
+        load_project (path);
+      }
+      initialize_project_ui();
     </script>
   </body>
 </html>

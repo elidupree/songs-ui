@@ -17,7 +17,8 @@
   "author": "GitHub",
   "license": "CC0-1.0",
   "dependencies": {
-    "chokidar": "1.7.x"
+    "chokidar": "1.7.x",
+    "lodash": "4.17.x"
   },
   "devDependencies": {
     "electron": "~1.7.8"

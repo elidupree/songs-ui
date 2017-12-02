@@ -1,4 +1,3 @@
-
 window.semitone_ratio = Math.pow (2, 1/12);
 window.sqrt_semitone_ratio = Math.pow (2, 1/24);
 window.log_semitone_ratio = Math.log (semitone_ratio);
@@ -17,24 +16,24 @@ const note_info = [
     {name:"Bb", color:"black"},
     {name:"B", color:"white"},
 ];
-function window.semitones_to_note_info (semitones) {
+window.semitones_to_note_info = function (semitones) {
   return note_info [(semitones+48) % 12];
 }
-function window.semitones_to_note_name (semitones) {
+window.semitones_to_note_name = function (semitones) {
   return semitones_to_note_info (semitones).name + (Math.floor ((semitones+48)/12)).toString();
 }
 
-function window.midi_pitch_to_frequency(pitch) {
+window.midi_pitch_to_frequency = function (pitch) {
   return 440.0*Math.pow(semitone_ratio, pitch-69);
 }
-function window.frequency_to_fractional_midi_pitch(frequency) {
+window.frequency_to_fractional_midi_pitch = function (frequency) {
   return 69 + Math.round(Math.log(frequency/440.0)/log_semitone_ratio);
 }
-function window.frequency_to_nearest_midi_pitch(frequency) {
+window.frequency_to_nearest_midi_pitch = function (frequency) {
   return Math.round(frequency_to_fractional_midi_pitch(frequency));
 }
 
-function window.to_rgb(color) {
+window.to_rgb = function (color) {
   return {
     red: parseInt (color.substring (1, 3), 16),
     green: parseInt (color.substring (3, 5), 16),
@@ -42,7 +41,7 @@ function window.to_rgb(color) {
   };
 }
 
-function window.to_css_color (color) {
+window.to_css_color = function (color) {
   return `rgb(${Math.round(color.red)}, ${Math.round(color.green)}, ${Math.round(color.blue)})`;
 }
 

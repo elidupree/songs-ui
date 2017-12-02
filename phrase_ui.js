@@ -1,25 +1,30 @@
 const electron = require('electron');
-
+const _ = require('lodash');
 
 function make_phrase_canvas() {
   return $("<canvas>");
 }
 
 window.initialize_project_ui = function() {
-  
+  const metadatas = [
+    make_phrase_element ("editable"),
+    make_phrase_element ("generated"),
+    
+  ];
   project.element = $("<div>", {class: "project"}).append (
     $("<div>", {class: "phrase_editor"}).append (
-      make_phrase_canvas(),
+      metadatas [0].element,
       
     ),
     $("<div>", {class: "rendered_phrase_display"}).append (
-      make_phrase_canvas(),
+      metadatas [1].element,
       
     ),
   );
+  document.getElementById ("phrases").appendChild (project.element [0]);
   
   function update() {
-    iterate_values (TODO, function(metadata) {
+    metadatas.forEach(metadata => {
       metadata.redraw();
     });
   }
@@ -28,11 +33,12 @@ window.initialize_project_ui = function() {
 }
 
 
-
+window.default_transient_ui = function() {return {}};
+window.default_saved_ui = function() {return {}};
 
 
 function make_phrase_element (category) {
-  let metadata = {phrase};
+  let metadata = {};
   let div = metadata.element = document.createElement ("div");
   let canvas = document.createElement ("canvas");
   let context = canvas.getContext ("2d");
@@ -57,7 +63,7 @@ function make_phrase_element (category) {
   metadata.grid_inputs = function() {
     return {
       numerator: document.getElementById (`${category}_grid_numerator`).valueAsNumber,
-      denominator: document.getElementById (`${categorype}_grid_denominator`).valueAsNumber,
+      denominator: document.getElementById (`${category}_grid_denominator`).valueAsNumber,
     };
   };
   
@@ -77,89 +83,28 @@ function make_phrase_element (category) {
     return midi_pitch_to_frequency(frequency_to_nearest_midi_pitch(frequency));
   };
   
-  metadata.iterate_phases = function (callback) {
+  metadata.iterate_phrases = function (callback) {
     const phrases = project[category].phrases;
     _.forOwn(phrases, callback);
   };
   metadata.iterate_notes = function (callback) {
-    metadata.iterate_phases(phrase => {
+    metadata.iterate_phrases(phrase => {
       phrase.data.notes.forEach(callback);
     });
   };
   
   metadata.update_dimensions = function() {
-    metadata.min_time = 0.0;
-    metadata.max_time = 4.0;
-    metadata.min_frequency = 130.0;
-    metadata.max_frequency = 880.0;
-    metadata.iterate_notes(function(note) {
-      metadata.min_time = Math.min (metadata.min_time, note.start - 1);
-      metadata.max_time = Math.max (metadata.max_time, note.end + 1);
-      metadata.min_frequency = Math.min (metadata.min_frequency, note.frequency*Math.pow(semitone_ratio, -12.5));
-      metadata.max_frequency = Math.max (metadata.max_frequency, note.frequency*Math.pow(semitone_ratio, 12.5));
-    });
-    
-    metadata.time_width = metadata.max_time - metadata.min_time;
-    metadata.log_min_frequency = Math.log (metadata.min_frequency);
-    metadata.log_max_frequency = Math.log (metadata.max_frequency);
-    metadata.log_frequency_ratio = metadata.log_max_frequency - metadata.log_min_frequency;
-    metadata.height_in_semitones = metadata.log_frequency_ratio/log_semitone_ratio;
-    
-    metadata.width = metadata.time_width*time_scale;
-    metadata.height = metadata.height_in_semitones*semitone_scale;
+    const phrases = project[category].phrases;
+    metadata.dimensions = phrases_dimensions (phrases);
      
-    canvas.setAttribute ("width", metadata.width);
-    canvas.setAttribute ("height", metadata.height);
-    
-    phrase.data.notes.forEach(function(note) {
- TODO TODO      note.coordinates = note_coordinates(note);
-    });
+    canvas.setAttribute ("width", metadata.dimensions.canvas_width);
+    canvas.setAttribute ("height", metadata.dimensions.canvas_height);
   };
-  
-  let frequency_position = function (frequency, target) {
-    let result = target || {};
-    result.log_frequency = Math.log (frequency);
-    result.canvas_y_downwards = metadata.height * ((metadata.log_max_frequency - result.log_frequency) / metadata.log_frequency_ratio);
-    return result;
-  };
-  
-  let time_position = function (time) {
-    return (time - metadata.min_time) * time_scale;
-  };
-  
-  let note_coordinates = function (note, target) {
-    let result = target || {};
-    result.canvas_min_x = time_position(note.start);
-    result.canvas_max_x = time_position(note.end);
-    result.canvas_width = result.canvas_max_x - result.canvas_min_x;
-    result.log_frequency = Math.log (note.frequency);
-    let midh = metadata.log_max_frequency - result.log_frequency;
-    result.canvas_min_y_downwards = metadata.height * ((midh - log_semitone_ratio/2) / metadata.log_frequency_ratio);
-    result.canvas_max_y_downwards = metadata.height * ((midh + log_semitone_ratio/2) / metadata.log_frequency_ratio);
-    result.canvas_height = result.canvas_max_y_downwards - result.canvas_min_y_downwards;
-    result.min_displayed_frequency = note.frequency/sqrt_semitone_ratio;
-    result.max_displayed_frequency = note.frequency*sqrt_semitone_ratio;
-    return result;
-  }
   
   metadata.update_dimensions();
-
-  
-  let get_coordinates = function (canvas_x, canvas_y_downwards) {
-    let result = {};
-    result.canvas_x = canvas_x;
-    result.time = result.canvas_x/time_scale + metadata.min_time;
-    result.canvas_y_downwards = canvas_y_downwards;
-    result.canvas_y_upwards = metadata.height - result.canvas_y_downwards;
-    result.frequency = Math.exp(result.canvas_y_upwards/log_frequency_scale + metadata.log_min_frequency);
-    result.on_canvas_horizontally = (result.time >= metadata.min_time && result.time <= metadata.max_time);
-    result.on_canvas_vertically = (result.canvas_y_downwards >= 0 && result.canvas_y_downwards <= metadata.height);
-    result.on_canvas = result.on_canvas_horizontally && result.on_canvas_vertically;
-    return result;
-  };
   
   let mouse_coordinates = function (event) {
-    return get_coordinates(event.pageX - canvas.offsetLeft, event.pageY - canvas.offsetTop);
+    return get_coordinates(metadata.dimensions, event.pageX - canvas.offsetLeft, event.pageY - canvas.offsetTop);
   };
   
   let get_overlapping_note = function (coordinates) {
@@ -220,13 +165,12 @@ function make_phrase_element (category) {
       let frequency_shift = metadata.snap_frequency_to_semitones (drag_move.reference_note.frequency * drag_move.current_coordinates.frequency / drag_move.original_coordinates.frequency) / drag_move.reference_note.frequency;
       result.frequency *= frequency_shift;
     }
-    
-    result.coordinates = note_coordinates (result);
+
     return result;
   };
   
   let draw_note = function(index, note) {
-    const coordinates = node_coordinates (note);
+    const coordinates = note_coordinates (metadata.dimensions, note);
     
     let color = to_rgb("#000000");
     note.tags.forEach(function(tag) {
@@ -240,6 +184,7 @@ function make_phrase_element (category) {
     //console.log (color);
     //console.log (to_css_color(color));
     context.fillStyle = to_css_color(color);
+    //console.log (metadata.dimensions, coordinates);
     context.fillRect(coordinates.canvas_min_x, coordinates.canvas_min_y_downwards, coordinates.canvas_width, coordinates.canvas_height);
     if (selected_notes [index]) {
       context.strokeRect(coordinates.canvas_min_x, coordinates.canvas_min_y_downwards, coordinates.canvas_width, coordinates.canvas_height);
@@ -250,8 +195,8 @@ function make_phrase_element (category) {
     context.fillStyle = "#eee";
     //context.fillRect(0,0,metadata.width,metadata.height);
     
-    let min_semitones = frequency_to_fractional_midi_pitch (metadata.min_frequency);
-    let max_semitones = Math.ceil(frequency_to_fractional_midi_pitch (metadata.max_frequency));
+    let min_semitones = frequency_to_fractional_midi_pitch (metadata.dimensions.min_frequency);
+    let max_semitones = Math.ceil(frequency_to_fractional_midi_pitch (metadata.dimensions.max_frequency));
     for (let semitones = Math.floor (min_semitones); semitones <= max_semitones; ++semitones) {
       let color = semitones_to_note_info (semitones).color;
       //console.log (color, semitones) ;
@@ -259,16 +204,16 @@ function make_phrase_element (category) {
       if (color == "black") {
         context.fillStyle = "#ddd";
       }
-      let freq_top = frequency_position (midi_pitch_to_frequency(semitones+0.5)).canvas_y_downwards;
-      context.fillRect(0, freq_top, metadata.width, semitone_scale);
+      let freq_top = frequency_position (metadata.dimensions, midi_pitch_to_frequency(semitones+0.5)).canvas_y_downwards;
+      context.fillRect(0, freq_top, metadata.dimensions.canvas_width, metadata.dimensions.pixels_per_semitone);
       context.fillStyle = "#000";
-      context.fillText(`${semitones} (${semitones_to_note_name(semitones)})`, 2, freq_top + semitone_scale);
+      context.fillText(`${semitones} (${semitones_to_note_name(semitones)})`, 2, freq_top + metadata.dimensions.pixels_per_semitone);
     }
     
     let step = metadata.grid_step_size();
     for (let time = Math.ceil(metadata.min_time/step)*step; time <metadata.max_time; time += step) {
       context.fillStyle = "#ccc";
-      context.fillRect(time_position(time), 0, 1, metadata.height);
+      context.fillRect(time_position(metadata.dimensions, time), 0, 1, metadata.height);
     }
     
     context.fillStyle = "#000";
@@ -278,18 +223,18 @@ function make_phrase_element (category) {
     metadata.iterate_notes(function(note, index) {
       let dragged = drag_move && drag_move.dragged_notes [index];
       if (dragged) {
-        draw_note (dragged_note (note));
+        draw_note (index, dragged_note (note));
       }
       if (!(dragged && !drag_move.event.shiftKey)) {
-        draw_note (note);
+        draw_note (index, note);
       }
     });
     
-    if (phrase.timed_with_playback) {
+    if (category == "generated") {
       context.fillStyle = "#f00";
-      context.fillRect((playback_position - metadata.min_time)*time_scale, 0, 1, metadata.height);
-      context.fillRect((playback_start    - metadata.min_time)*time_scale, 0, 1, metadata.height);
-      context.fillRect((playback_end      - metadata.min_time)*time_scale, 0, 1, metadata.height);
+      //context.fillRect((playback_position - metadata.min_time)*metadata.dimensions.pixels_per_second, 0, 1, metadata.dimensions.canvas_height);
+      context.fillRect((project.playback_start    - metadata.dimensions.min_time)*metadata.dimensions.pixels_per_second, 0, 1, metadata.dimensions.canvas_height);
+      context.fillRect((project.playback_end      - metadata.dimensions.min_time)*metadata.dimensions.pixels_per_second, 0, 1, metadata.dimensions.canvas_height);
     }
     
     if (drag_select !== null) {
@@ -368,7 +313,7 @@ function make_phrase_element (category) {
     }
         
     let update_selected_tags = function() {
-      iterate_values (this_phrase_tags, info => {
+      _.forOwn (this_phrase_tags, info => {
         info.checkbox.prop('checked', false);
       });
       for_selected (note => {
@@ -398,10 +343,7 @@ function make_phrase_element (category) {
     
     
     let changed = function() {
-      save_phrase(edited_phrase
-              TODO 
-              
-      );
+      save_phrase("editable", edited_phrase);
       update_tags();
       metadata.update_dimensions();
       metadata.redraw();
@@ -414,13 +356,13 @@ function make_phrase_element (category) {
         selected_notes = {};
       }
       if (event.ctrlKey) {
-        notes.forEach(function(note) {
-          delete selected_notes[TODO note.index];
+        notes.forEach(function(note, index) {
+          delete selected_notes[index];
         });
       }
       else {
-        notes.forEach(function(note) {
-          selected_notes[TODO note.index] = true;
+        notes.forEach(function(note, index) {
+          selected_notes[index] = true;
         });
       }
       update_selected_tags();
@@ -552,7 +494,7 @@ function make_phrase_element (category) {
       }
     });
     
-    if (did_load) {setImmediate(()=>changed());}
+    //if (did_load) {setImmediate(()=>changed());}
   }
   
   //redraw();

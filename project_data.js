@@ -27,8 +27,8 @@ window.load_project = function(project_path) {
 };
 
 window.load_phrases = function (category) {
-  const names = filesystem.readdirSync (phrases_path);
-  names.forEach(function(name)
+  const names = filesystem.readdirSync (path.join (project.path, category+"/phrases"));
+  names.forEach(function(name) {
     load_phrase (category, path.basename (name, ".json"));
     
   });
@@ -73,11 +73,13 @@ window.load_phrase = function (category, name) {
   } catch (e) {console.log (e);}
 }
 
-window.save_phrase = function (name) {
+window.save_phrase = function (category, name) {
   const paths = phrase_paths (category, name);
   try {
     console.log(paths);
-    filesystem.writeFileSync (paths.data, JSON.stringify(phrase.data));
+    if (category == "editable") {
+      filesystem.writeFileSync (paths.data, JSON.stringify(phrase.data));
+    }
     filesystem.writeFileSync (paths.ui, JSON.stringify(phrase.saved_ui));
   } catch(e){console.log(e)}
 }
