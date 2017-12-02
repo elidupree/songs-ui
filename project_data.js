@@ -13,40 +13,47 @@ window.load_project = function(project_path) {
   if (window.project) {window.unload_project();}
   
   const project = window.project = {
-    editable_phrases: {},
-    generated_phrases: {},
+    editable: {phrases: {}},
+    generated: {phrases: {}},
     
   };
   
   project.path = project_path;
-  project.editable_phrases_directory_path = path.join (project_path, "editable/phrases");
-  project.generated_phrases_directory_path = path.join (project_path, "generated/phrases");
+  //project.editable_phrases_directory_path = path.join (project_path, "editable/phrases");
+  //project.generated_phrases_directory_path = path.join (project_path, "generated/phrases");
   
-  load_phrases (project.editable_phrases_directory_path, project.editable_phrases);
-  load_phrases (project.generated_phrases_directory_path, project.generated_phrases);
+  load_phrases ("editable");
+  load_phrases ("generated");
 };
 
-window.load_phrases = function (phrases_type, phrases) {
+window.load_phrases = function (category) {
   const names = filesystem.readdirSync (phrases_path);
   names.forEach(function(name)
-    load_phrase (phrases_path, phrases, path.basename (name, ".json"));
+    load_phrase (category, path.basename (name, ".json"));
     
   });
 };
 
+window.phrase_paths = function (category, name) {
+  return {
+    data: path.join (project.path, `${category}/phrases/${name}.json`),
+    ui: path.join (project.path, `${category}/ui/phrases/${name}.json`),
+  };
+}
+
 window.unload_phrase = function (phrases, name) {
-  phrases [name].element.remove();
+  //phrases [name].element.remove();
   delete phrases [name];
 }
 
-window.load_phrase = function (phrases_path, phrases, name) {
+window.load_phrase = function (category, name) {
+  const phrases = project[category].phrases;
   if (phrases [name]) {
     unload_phrase (phrases, name);
   }
-  const phrase_path = path.join (project.path, `${category}/phrases/${name}.json`);
-  const phrase_ui_path = path.join (project.path, `${category}/ui/phrases/${name}.json`);
+  const paths = phrase_paths (category, name);
   try {
-    const loaded_phrase = JSON.parse (filesystem.readFileSync (phrase_path));
+    const loaded_phrase = JSON.parse (filesystem.readFileSync (paths.data));
     if (loaded_phrase) {
       phrases [name] = {
         data: loaded_phrase,
@@ -54,7 +61,7 @@ window.load_phrase = function (phrases_path, phrases, name) {
       };
       
       try {
-        const loaded_ui = JSON.parse (filesystem.readFileSync (phrase_path));
+        const loaded_ui = JSON.parse (filesystem.readFileSync (paths.ui));
         phrases [name].saved_ui = loaded_ui;
       } catch (e) {
         console.log (e);
@@ -66,11 +73,18 @@ window.load_phrase = function (phrases_path, phrases, name) {
   } catch (e) {console.log (e);}
 }
 
+window.save_phrase = function (name) {
+  const paths = phrase_paths (category, name);
+  try {
+    console.log(paths);
+    filesystem.writeFileSync (paths.data, JSON.stringify(phrase.data));
+    filesystem.writeFileSync (paths.ui, JSON.stringify(phrase.saved_ui));
+  } catch(e){console.log(e)}
+}
 
-let phrases_metadata = {}
+
 let playback_start = 0.0;
 let playback_end = 10.0;
-let 
 
 
 const tags = {};

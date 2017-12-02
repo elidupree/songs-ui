@@ -1,4 +1,3 @@
-
 const electron = require('electron');
 
 
@@ -18,30 +17,21 @@ window.initialize_project_ui = function() {
       
     ),
   );
-}
-
-window.tick = function() {
-
-}
-
-
-
-
-
-
-function draw_phrase (phrase, phrase_index) {
-  let path;
-  let did_load = false;
-  console.log(electron.remote.process.argv)
-  if (phrase.editable && electron.remote.process.argv.length > 2) {
-    path = electron.remote.process.argv[2]+phrase_index+".json";
-    try {
-      let loaded = JSON.parse (filesystem.readFileSync (path));
-      if (loaded) {phrase.data = loaded; did_load = true;}
-    } catch(e){console.log(e)}
+  
+  function update() {
+    iterate_values (TODO, function(metadata) {
+      metadata.redraw();
+    });
   }
+  
+  setInterval (update, 100);
+}
 
 
+
+
+
+function make_phrase_element (category) {
   let metadata = {phrase};
   let div = metadata.element = document.createElement ("div");
   let canvas = document.createElement ("canvas");
@@ -53,9 +43,9 @@ function draw_phrase (phrase, phrase_index) {
   
   options.innerHTML = `
   Grid increment:
-  <input type="number" id="${phrase_index}_grid_numerator" value=1 min=1 max=100 step=1 />
+  <input type="number" id="${category}_grid_numerator" value=1 min=1 max=100 step=1 />
   /
-  <input type="number" id="${phrase_index}_grid_denominator" value=4 min=1 max=100 step=1 />
+  <input type="number" id="${category}_grid_denominator" value=4 min=1 max=100 step=1 />
   seconds.
   `
   
@@ -66,8 +56,8 @@ function draw_phrase (phrase, phrase_index) {
   
   metadata.grid_inputs = function() {
     return {
-      numerator: document.getElementById (`${phrase_index}_grid_numerator`).valueAsNumber,
-      denominator: document.getElementById (`${phrase_index}_grid_denominator`).valueAsNumber,
+      numerator: document.getElementById (`${category}_grid_numerator`).valueAsNumber,
+      denominator: document.getElementById (`${categorype}_grid_denominator`).valueAsNumber,
     };
   };
   
@@ -87,17 +77,26 @@ function draw_phrase (phrase, phrase_index) {
     return midi_pitch_to_frequency(frequency_to_nearest_midi_pitch(frequency));
   };
   
+  metadata.iterate_phases = function (callback) {
+    const phrases = project[category].phrases;
+    _.forOwn(phrases, callback);
+  };
+  metadata.iterate_notes = function (callback) {
+    metadata.iterate_phases(phrase => {
+      phrase.data.notes.forEach(callback);
+    });
+  };
+  
   metadata.update_dimensions = function() {
     metadata.min_time = 0.0;
     metadata.max_time = 4.0;
     metadata.min_frequency = 130.0;
     metadata.max_frequency = 880.0;
-    phrase.data.notes.forEach(function(note, index) {
+    metadata.iterate_notes(function(note) {
       metadata.min_time = Math.min (metadata.min_time, note.start - 1);
       metadata.max_time = Math.max (metadata.max_time, note.end + 1);
       metadata.min_frequency = Math.min (metadata.min_frequency, note.frequency*Math.pow(semitone_ratio, -12.5));
       metadata.max_frequency = Math.max (metadata.max_frequency, note.frequency*Math.pow(semitone_ratio, 12.5));
-      note.index = index;
     });
     
     metadata.time_width = metadata.max_time - metadata.min_time;
@@ -113,7 +112,7 @@ function draw_phrase (phrase, phrase_index) {
     canvas.setAttribute ("height", metadata.height);
     
     phrase.data.notes.forEach(function(note) {
-      note.coordinates = note_coordinates(note);
+ TODO TODO      note.coordinates = note_coordinates(note);
     });
   };
   
@@ -165,34 +164,36 @@ function draw_phrase (phrase, phrase_index) {
   
   let get_overlapping_note = function (coordinates) {
     return phrase.data.notes.find(function(note) {
-      if ( note.coordinates.canvas_min_x < coordinates.canvas_x
-        && note.coordinates.canvas_max_x > coordinates.canvas_x
-        && note.coordinates.canvas_min_y_downwards < coordinates.canvas_y_downwards
-        && note.coordinates.canvas_max_y_downwards > coordinates.canvas_y_downwards) {
+      const coordinates = node_coordinates (note);
+      if ( coordinates.canvas_min_x < coordinates.canvas_x
+        && coordinates.canvas_max_x > coordinates.canvas_x
+        && coordinates.canvas_min_y_downwards < coordinates.canvas_y_downwards
+        && coordinates.canvas_max_y_downwards > coordinates.canvas_y_downwards) {
         return true;
       }
     }) || null;
   };
   let get_overlapping_notes = function (x1,y1,x2,y2) {
     return phrase.data.notes.filter(function(note) {
+      const coordinates = node_coordinates (note);
       //console.log (x1,y1,x2,y2, note) ;
       /*console.log (
-        note.coordinates.canvas_min_x < x1,
-        note.coordinates.canvas_min_x < x2,
-        note.coordinates.canvas_max_x > x1,
-        note.coordinates.canvas_max_x > x2,
-        note.coordinates.canvas_min_y_downwards < y1,
-        note.coordinates.canvas_min_y_downwards < y2,
-        note.coordinates.canvas_max_y_downwards > y1,
-        note.coordinates.canvas_max_y_downwards > y2) ;*/
-      if ( (note.coordinates.canvas_min_x < x1 ||
-            note.coordinates.canvas_min_x < x2)
-        && (note.coordinates.canvas_max_x > x1 ||
-            note.coordinates.canvas_max_x > x2)
-        && (note.coordinates.canvas_min_y_downwards < y1 ||
-            note.coordinates.canvas_min_y_downwards < y2)
-        && (note.coordinates.canvas_max_y_downwards > y1 ||
-            note.coordinates.canvas_max_y_downwards > y2)
+        coordinates.canvas_min_x < x1,
+        coordinates.canvas_min_x < x2,
+        coordinates.canvas_max_x > x1,
+        coordinates.canvas_max_x > x2,
+        coordinates.canvas_min_y_downwards < y1,
+        coordinates.canvas_min_y_downwards < y2,
+        coordinates.canvas_max_y_downwards > y1,
+        coordinates.canvas_max_y_downwards > y2) ;*/
+      if ( (coordinates.canvas_min_x < x1 ||
+            coordinates.canvas_min_x < x2)
+        && (coordinates.canvas_max_x > x1 ||
+            coordinates.canvas_max_x > x2)
+        && (coordinates.canvas_min_y_downwards < y1 ||
+            coordinates.canvas_min_y_downwards < y2)
+        && (coordinates.canvas_max_y_downwards > y1 ||
+            coordinates.canvas_max_y_downwards > y2)
         ) {
         //console.log (x1,y1,x2,y2, note) ;
         return true;
@@ -224,8 +225,8 @@ function draw_phrase (phrase, phrase_index) {
     return result;
   };
   
-  let draw_note = function(note) {
-    let coordinates = note.coordinates;
+  let draw_note = function(index, note) {
+    const coordinates = node_coordinates (note);
     
     let color = to_rgb("#000000");
     note.tags.forEach(function(tag) {
@@ -240,7 +241,7 @@ function draw_phrase (phrase, phrase_index) {
     //console.log (to_css_color(color));
     context.fillStyle = to_css_color(color);
     context.fillRect(coordinates.canvas_min_x, coordinates.canvas_min_y_downwards, coordinates.canvas_width, coordinates.canvas_height);
-    if (selected_notes [note.index]) {
+    if (selected_notes [index]) {
       context.strokeRect(coordinates.canvas_min_x, coordinates.canvas_min_y_downwards, coordinates.canvas_width, coordinates.canvas_height);
     }
   };
@@ -274,8 +275,8 @@ function draw_phrase (phrase, phrase_index) {
     //context.lineWidth = 4;
     context.strokeStyle = "#00f";
     
-    phrase.data.notes.forEach(function(note) {
-      let dragged = drag_move && drag_move.dragged_notes [note.index];
+    metadata.iterate_notes(function(note, index) {
+      let dragged = drag_move && drag_move.dragged_notes [index];
       if (dragged) {
         draw_note (dragged_note (note));
       }
@@ -301,7 +302,7 @@ function draw_phrase (phrase, phrase_index) {
     }
   };
   
-  if (phrase.timed_with_playback && !phrase.editable) {
+  if (category == "generated") {
   let dragging_mouse_original_time = null;
   let dragging_start;
   let dragging_original_start;
@@ -339,10 +340,10 @@ function draw_phrase (phrase, phrase_index) {
   });
   }
   
-  if (phrase.editable) {
+  if (category == "editable") {
     let this_phrase_tags = {}
     let for_selected = function (callback) {
-      iterate_keys (selected_notes, function(index) {
+      _.forOwn (selected_notes, function(index) {
         callback (phrase.data.notes [index]);
       });
     };
@@ -378,7 +379,7 @@ function draw_phrase (phrase, phrase_index) {
     }
     
     let update_tags = function() {
-      phrase.data.notes.forEach(function(note) {
+      metadata.iterate_notes(function(note) {
         note.tags.forEach(add_tag_chooser);
       });
       update_selected_tags();
@@ -397,17 +398,13 @@ function draw_phrase (phrase, phrase_index) {
     
     
     let changed = function() {
-      
-      push_input ({
-        "EditPhrase": [phrase_index, phrase.data],
-      });
+      save_phrase(edited_phrase
+              TODO 
+              
+      );
       update_tags();
       metadata.update_dimensions();
       metadata.redraw();
-      try {
-        console.log(path)
-        filesystem.writeFileSync (path, JSON.stringify(phrase.data));
-      } catch(e){console.log(e)}
     };
     
     
@@ -418,21 +415,19 @@ function draw_phrase (phrase, phrase_index) {
       }
       if (event.ctrlKey) {
         notes.forEach(function(note) {
-          delete selected_notes[note.index];
+          delete selected_notes[TODO note.index];
         });
       }
       else {
         notes.forEach(function(note) {
-          selected_notes[note.index] = true;
+          selected_notes[TODO note.index] = true;
         });
       }
       update_selected_tags();
     }
     
     let create_note = function (note) {
-      note.index = phrase.data.notes.length;
-      note.coordinates = note_coordinates(note);
-      phrase.data.notes.push (note);
+      metadata.edited_phrase.data.notes.push (note);
     }
     
     canvas.addEventListener ("mousedown", function (event) {
@@ -509,7 +504,7 @@ function draw_phrase (phrase, phrase_index) {
           } else {
             iterate_keys(drag_move.dragged_notes, index => {
               let note = phrase.data.notes [index];
-              phrase.data.notes [note.index] = dragged_note (note);
+              phrase.data.notes [index] = dragged_note (note);
             });
           }
 
@@ -551,7 +546,7 @@ function draw_phrase (phrase, phrase_index) {
       }
       
       if (event.key === "Delete" || event.key === "Backspace") {
-        phrase.data.notes = phrase.data.notes.filter (note => !selected_notes [note.index]);
+        phrase.data.notes = phrase.data.notes.filter ((note, index) => !selected_notes [index]);
         selected_notes = {} ;
         changed();
       }
@@ -565,36 +560,4 @@ function draw_phrase (phrase, phrase_index) {
   return metadata;
 }
 
-function update() {
-  let updates = JSON.parse(songs.poll_updates());
-  let phrases_element = document.getElementById ("phrases");
-  updates.forEach(function(update) {
-    if (update.ReplacePhrase) {
-      //console.log (update);
-      let index = update.ReplacePhrase [0];
-      let phrase = update.ReplacePhrase[1];
 
-      if (phrases_metadata[index]) {
-        let element = phrases_metadata[index].element;
-        element.parentNode.removeChild (element);
-        delete phrases_metadata[index];
-      }
-      if (phrase !== null) {
-        let drawn = draw_phrase (phrase, index);
-        phrases_element.appendChild (drawn.element);
-        phrases_metadata[index] = drawn;
-      }
-      
-      console.log(phrases_metadata);
-    }
-    if (update.UpdatePlaybackPosition) {
-      playback_position = update.UpdatePlaybackPosition;
-    }
-  });
-  
-  iterate_values (phrases_metadata, function(metadata) {
-    metadata.redraw();
-  });
-}
-
-setInterval (update, 100);
