@@ -28,6 +28,8 @@ window.initialize_project_ui = function() {
     phrases_list.append($("<div>").append(
       $("<input>", {type: "radio", id: `${name}_edit_select`, name: "phrase_edit_select", value: name, checked: project.saved_ui.edited_phrase === name}).click (()=>{project.saved_ui.edited_phrase = name;}),
       $("<label>", {for: `${name}_edit_select`, text: name}),
+      $("<input>", {type: "checkbox", id: `${name}_view_select`, name: "phrase_view_select", value: name, checked: project.saved_ui.viewed_phrases[name] !== false}).click (()=>{project.saved_ui.viewed_phrases[name] = $(`#${name}_view_select`).prop("checked");}),
+      $("<label>", {for: `${name}_view_select`, text: name}),
     ));
   });
   
@@ -231,6 +233,7 @@ function make_phrase_element (category) {
     context.strokeStyle = "#00f";
     
     metadata.iterate_notes(function(note, index, phrase, name) {
+      if (project.saved_ui.viewed_phrases[name] === false && project.saved_ui.edited_phrase !== name) {return;}
       let dragged = drag_move && drag_move.dragged_notes [index];
       if (dragged) {
         draw_note (index, dragged_note (note), name);

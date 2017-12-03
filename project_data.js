@@ -23,7 +23,7 @@ window.load_project = function(project_path) {
     project.saved_ui = loaded_ui;
   } catch (e) {
     console.log (e);
-    project.saved_ui = {};
+    project.saved_ui = {viewed_phrases:{}};
   }
   
   project.path = project_path;
