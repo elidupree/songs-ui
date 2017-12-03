@@ -18,6 +18,14 @@ window.load_project = function(project_path) {
     
   };
   
+  try {
+    const loaded_ui = JSON.parse (filesystem.readFileSync (path.join (project_path, "ui/project.json")));
+    project.saved_ui = loaded_ui;
+  } catch (e) {
+    console.log (e);
+    project.saved_ui = {};
+  }
+  
   project.path = project_path;
   //project.editable_phrases_directory_path = path.join (project_path, "editable/phrases");
   //project.generated_phrases_directory_path = path.join (project_path, "generated/phrases");
@@ -80,6 +88,13 @@ window.save_phrase = function (category, name) {
     if (category == "editable") {
       filesystem.writeFileSync (paths.data, JSON.stringify(phrase.data));
     }
+    filesystem.writeFileSync (paths.ui, JSON.stringify(phrase.saved_ui));
+  } catch(e){console.log(e)}
+}
+window.save_phrase_ui = function (category, name) {
+  const paths = phrase_paths (category, name);
+  try {
+    console.log(paths);
     filesystem.writeFileSync (paths.ui, JSON.stringify(phrase.saved_ui));
   } catch(e){console.log(e)}
 }

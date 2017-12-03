@@ -11,10 +11,11 @@ window.initialize_project_ui = function() {
     make_phrase_element ("generated"),
     
   ];
+  const phrases_list = $("<div>");
   project.element = $("<div>", {class: "project"}).append (
     $("<div>", {class: "phrase_editor"}).append (
       metadatas [0].element,
-      
+      phrases_list,
     ),
     $("<div>", {class: "rendered_phrase_display"}).append (
       metadatas [1].element,
@@ -22,6 +23,14 @@ window.initialize_project_ui = function() {
     ),
   );
   document.getElementById ("phrases").appendChild (project.element [0]);
+  
+  _.forOwn(project.editable.phrases, (phrase, name) => {
+    phrases_list.append($("<div>").append(
+      $("<input>", {type: "radio", id: `${name}_edit_select`, name: "phrase_edit_select", value: name, checked: project.saved_ui.edited_phrase === name}).click (()=>{project.saved_ui.edited_phrase = name;}),
+      $("<label>", {for: `${name}_edit_select`, text: name}),
+    ));
+  });
+  
   
   function update() {
     metadatas.forEach(metadata => {
@@ -34,8 +43,9 @@ window.initialize_project_ui = function() {
 
 
 window.default_transient_ui = function() {return {}};
-window.default_saved_ui = function() {return {}};
+window.default_saved_ui = function() {return {selected_notes:{}}};
 
+function edited_phrase() {return project.editable.phrases[project.saved_ui.edited_phrase];}
 
 function make_phrase_element (category) {
   let metadata = {};
@@ -88,8 +98,8 @@ function make_phrase_element (category) {
     _.forOwn(phrases, callback);
   };
   metadata.iterate_notes = function (callback) {
-    metadata.iterate_phrases(phrase => {
-      phrase.data.notes.forEach(callback);
+    metadata.iterate_phrases((phrase, name) => {
+      phrase.data.notes.forEach((note, index) => callback(note, index, phrase, name));
     });
   };
   
@@ -149,7 +159,6 @@ function make_phrase_element (category) {
   
   let drag_select = null;
   let drag_move = null;
-  let selected_notes = {};
   let dragged_note = function (note) {
     let result = copy_note(note);
     
@@ -169,7 +178,7 @@ function make_phrase_element (category) {
     return result;
   };
   
-  let draw_note = function(index, note) {
+  let draw_note = function(index, note, phrase_name) {
     const coordinates = note_coordinates (metadata.dimensions, note);
     
     let color = to_rgb("#000000");
@@ -186,7 +195,8 @@ function make_phrase_element (category) {
     context.fillStyle = to_css_color(color);
     //console.log (metadata.dimensions, coordinates);
     context.fillRect(coordinates.canvas_min_x, coordinates.canvas_min_y_downwards, coordinates.canvas_width, coordinates.canvas_height);
-    if (selected_notes [index]) {
+    //console.log(edited_phrase());
+    if (project.saved_ui.edited_phrase === phrase_name && edited_phrase().saved_ui.selected_notes [index]) {
       context.strokeRect(coordinates.canvas_min_x, coordinates.canvas_min_y_downwards, coordinates.canvas_width, coordinates.canvas_height);
     }
   };
@@ -220,13 +230,13 @@ function make_phrase_element (category) {
     //context.lineWidth = 4;
     context.strokeStyle = "#00f";
     
-    metadata.iterate_notes(function(note, index) {
+    metadata.iterate_notes(function(note, index, phrase, name) {
       let dragged = drag_move && drag_move.dragged_notes [index];
       if (dragged) {
-        draw_note (index, dragged_note (note));
+        draw_note (index, dragged_note (note), name);
       }
       if (!(dragged && !drag_move.event.shiftKey)) {
-        draw_note (index, note);
+        draw_note (index, note, name);
       }
     });
     
@@ -279,16 +289,17 @@ function make_phrase_element (category) {
   });
   document.addEventListener ("mouseup", function (event) {
     dragging_mouse_original_time = null;
-    push_input ({
+    /* TODO push_input ({
       "SetPlaybackRange": [playback_start, playback_end],
-    });
+    });*/
   });
   }
   
   if (category == "editable") {
+    
     let this_phrase_tags = {}
     let for_selected = function (callback) {
-      _.forOwn (selected_notes, function(index) {
+      _.forOwn (edited_phrase().saved_ui.selected_notes, function(index) {
         callback (phrase.data.notes [index]);
       });
     };
@@ -299,6 +310,7 @@ function make_phrase_element (category) {
         let checkbox;
         tags_box.append($("<div>").append(
           checkbox = $("<input>", {type:"checkbox"}).on("change", e=>{
+            if (edited_phrase() === undefined) {return;}
             for_selected(note=>{
               note.tags = note.tags.filter (tagg => tagg != tag);
               if (checkbox.prop('checked')) {
@@ -327,6 +339,7 @@ function make_phrase_element (category) {
       metadata.iterate_notes(function(note) {
         note.tags.forEach(add_tag_chooser);
       });
+      if (edited_phrase() === undefined) {return;}
       update_selected_tags();
     };
 
@@ -343,7 +356,7 @@ function make_phrase_element (category) {
     
     
     let changed = function() {
-      save_phrase("editable", edited_phrase);
+      save_phrase("editable", project.edited_phrase);
       update_tags();
       metadata.update_dimensions();
       metadata.redraw();
@@ -353,19 +366,20 @@ function make_phrase_element (category) {
     let modify_selection = function (notes, event) {
       //console.log(notes);
       if (!event.shiftKey && !event.ctrlKey) {
-        selected_notes = {};
+        edited_phrase().saved_ui.selected_notes = {};
       }
       if (event.ctrlKey) {
         notes.forEach(function(note, index) {
-          delete selected_notes[index];
+          delete edited_phrase().saved_ui.selected_notes[index];
         });
       }
       else {
         notes.forEach(function(note, index) {
-          selected_notes[index] = true;
+          edited_phrase().saved_ui.selected_notes[index] = true;
         });
       }
       update_selected_tags();
+      save_phrase_ui("editable", project.edited_phrase);
     }
     
     let create_note = function (note) {
@@ -373,6 +387,7 @@ function make_phrase_element (category) {
     }
     
     canvas.addEventListener ("mousedown", function (event) {
+      if (edited_phrase() === undefined) {return;}
       if (drag_move || drag_select) {return;}
       let coordinates = mouse_coordinates (event);
       let overlapping = get_overlapping_note (coordinates);
@@ -381,8 +396,8 @@ function make_phrase_element (category) {
       }
       else {
         drag_move = {event: event, original_coordinates: coordinates, current_coordinates: coordinates, maybe_click: true, reference_note: overlapping};
-        if (selected_notes [overlapping.index]) {
-          drag_move.dragged_notes = selected_notes;
+        if (edited_phrase().saved_ui.selected_notes [overlapping.index]) {
+          drag_move.dragged_notes = edited_phrase().saved_ui.selected_notes;
         }
         else {
           drag_move.dragged_notes = {[overlapping.index]: true};
@@ -394,6 +409,7 @@ function make_phrase_element (category) {
     });
     
     document.addEventListener ("mousemove", function (event) {
+      if (edited_phrase() === undefined) {return;}
       let coordinates = mouse_coordinates (event);
       let drag = (drag_select || drag_move);
       if (drag) {
@@ -405,6 +421,7 @@ function make_phrase_element (category) {
     });
     
     document.addEventListener ("mouseup", function (event) {
+      if (edited_phrase() === undefined) {return;}
       let coordinates = mouse_coordinates (event);
       let drag = (drag_select || drag_move);
       
@@ -437,11 +454,12 @@ function make_phrase_element (category) {
               let note = phrase.data.notes [index];
               create_note(copy_note(dragged_note (note)));
             });
-            if (drag_move.dragged_notes === selected_notes) {
-              selected_notes = {}
+            if (drag_move.dragged_notes === edited_phrase().saved_ui.selected_notes) {
+              edited_phrase().saved_ui.selected_notes = {}
               for (let i = old_length; i < phrase.data.notes.length; ++i) {
-                selected_notes[i] = true;
+                edited_phrase().saved_ui.selected_notes[i] = true;
               }
+              save_phrase_ui("editable", project.edited_phrase);
             }
           } else {
             iterate_keys(drag_move.dragged_notes, index => {
@@ -467,6 +485,7 @@ function make_phrase_element (category) {
     });
     
     document.addEventListener ("keydown", function (event) {
+      if (edited_phrase() === undefined) {return;}
       if (event.key == "ArrowLeft" || event.key == "ArrowRight" || event.key == "ArrowUp" || event.key == "ArrowDown") {
         for_selected (note => {
           if (event.key == "ArrowLeft") {
@@ -488,8 +507,8 @@ function make_phrase_element (category) {
       }
       
       if (event.key === "Delete" || event.key === "Backspace") {
-        phrase.data.notes = phrase.data.notes.filter ((note, index) => !selected_notes [index]);
-        selected_notes = {} ;
+        phrase.data.notes = phrase.data.notes.filter ((note, index) => !edited_phrase().saved_ui.selected_notes [index]);
+        edited_phrase().saved_ui.selected_notes = {} ;
         changed();
       }
     });
