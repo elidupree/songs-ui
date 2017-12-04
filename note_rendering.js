@@ -46,10 +46,10 @@ window.get_coordinates = function (metadata, canvas_x, canvas_y_downwards) {
     result.canvas_x = canvas_x;
     result.time = result.canvas_x/metadata.pixels_per_second + metadata.min_time;
     result.canvas_y_downwards = canvas_y_downwards;
-    result.canvas_y_upwards = metadata.height - result.canvas_y_downwards;
+    result.canvas_y_upwards = metadata.canvas_height - result.canvas_y_downwards;
     result.frequency = Math.exp(result.canvas_y_upwards/metadata.pixels_per_log_frequency + metadata.log_min_frequency);
     result.on_canvas_horizontally = (result.time >= metadata.min_time && result.time <= metadata.max_time);
-    result.on_canvas_vertically = (result.canvas_y_downwards >= 0 && result.canvas_y_downwards <= metadata.height);
+    result.on_canvas_vertically = (result.canvas_y_downwards >= 0 && result.canvas_y_downwards <= metadata.canvas_height);
     result.on_canvas = result.on_canvas_horizontally && result.on_canvas_vertically;
     return result;
   };
@@ -82,50 +82,6 @@ window.note_coordinates = function (metadata, note, target) {
     return result;
   }
   
-
-
-
-
-  let dragged_note = function (note) {
-    let result = copy_note(note);
-    
-    if (drag_move.ends_only) {
-      let time_shift = metadata.snap_time_to_grid(drag_move.reference_note.end + drag_move.current_coordinates.time - drag_move.original_coordinates.time) - drag_move.reference_note.end;
-      result.end += time_shift;
-      result.end = Math.max(result.end, Math.min(note.end, result.start + metadata.grid_step_size()));
-    }
-    else {
-      let time_shift = metadata.snap_time_to_grid(drag_move.reference_note.start + drag_move.current_coordinates.time - drag_move.original_coordinates.time) - drag_move.reference_note.start;
-      result.start += time_shift; result.end += time_shift;
-      
-      let frequency_shift = metadata.snap_frequency_to_semitones (drag_move.reference_note.frequency * drag_move.current_coordinates.frequency / drag_move.original_coordinates.frequency) / drag_move.reference_note.frequency;
-      result.frequency *= frequency_shift;
-    }
-    
-    result.coordinates = note_coordinates (result);
-    return result;
-  };
-  
-  let draw_note = function(note) {
-    let coordinates = note.coordinates;
-    
-    let color = to_rgb("#000000");
-    note.tags.forEach(function(tag) {
-      let info = discover_tag (tag);
-      color.red += info.red; color.blue += info.blue; color.green += info.green;
-    });
-    //console.log (color);
-    if (note.tags.length > 0) {
-      color.red /= note.tags.length; color.blue /= note.tags.length; color.green /= note.tags.length;
-    }
-    //console.log (color);
-    //console.log (to_css_color(color));
-    context.fillStyle = to_css_color(color);
-    context.fillRect(coordinates.canvas_min_x, coordinates.canvas_min_y_downwards, coordinates.canvas_width, coordinates.canvas_height);
-    if (selected_notes [note.index]) {
-      context.strokeRect(coordinates.canvas_min_x, coordinates.canvas_min_y_downwards, coordinates.canvas_width, coordinates.canvas_height);
-    }
-  };
 
 
 

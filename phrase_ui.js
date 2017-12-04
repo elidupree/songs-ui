@@ -26,9 +26,13 @@ window.initialize_project_ui = function() {
   
   _.forOwn(project.editable.phrases, (phrase, name) => {
     phrases_list.append($("<div>").append(
-      $("<input>", {type: "radio", id: `${name}_edit_select`, name: "phrase_edit_select", value: name, checked: project.saved_ui.edited_phrase === name}).click (()=>{project.saved_ui.edited_phrase = name;}),
+      $("<input>", {type: "radio", id: `${name}_edit_select`, name: "phrase_edit_select", value: name, checked: project.saved_ui.edited_phrase === name}).click (()=>{
+        project.saved_ui.edited_phrase = name;
+      }),
       $("<label>", {for: `${name}_edit_select`, text: name}),
-      $("<input>", {type: "checkbox", id: `${name}_view_select`, name: "phrase_view_select", value: name, checked: project.saved_ui.viewed_phrases[name] !== false}).click (()=>{project.saved_ui.viewed_phrases[name] = $(`#${name}_view_select`).prop("checked");}),
+      $("<input>", {type: "checkbox", id: `${name}_view_select`, name: "phrase_view_select", value: name, checked: project.saved_ui.viewed_phrases[name] !== false}).click (()=>{
+        project.saved_ui.viewed_phrases[name] = $(`#${name}_view_select`).prop("checked");
+      }),
       $("<label>", {for: `${name}_view_select`, text: name}),
     ));
   });
@@ -116,23 +120,28 @@ function make_phrase_element (category) {
   metadata.update_dimensions();
   
   let mouse_coordinates = function (event) {
-    return get_coordinates(metadata.dimensions, event.pageX - canvas.offsetLeft, event.pageY - canvas.offsetTop);
+    const offset = $(canvas).offset();
+    //console.log(event, offset);
+    return get_coordinates(metadata.dimensions, event.pageX - offset.left, event.pageY - offset.top);
   };
   
   let get_overlapping_note = function (coordinates) {
-    return phrase.data.notes.find(function(note) {
-      const coordinates = node_coordinates (note);
-      if ( coordinates.canvas_min_x < coordinates.canvas_x
-        && coordinates.canvas_max_x > coordinates.canvas_x
-        && coordinates.canvas_min_y_downwards < coordinates.canvas_y_downwards
-        && coordinates.canvas_max_y_downwards > coordinates.canvas_y_downwards) {
+    const result = edited_phrase().data.notes.findIndex(function(note) {
+      const this_note_coordinates = note_coordinates (metadata.dimensions, note);
+      console.log (coordinates, this_note_coordinates);
+      if ( this_note_coordinates.canvas_min_x < coordinates.canvas_x
+        && this_note_coordinates.canvas_max_x > coordinates.canvas_x
+        && this_note_coordinates.canvas_min_y_downwards < coordinates.canvas_y_downwards
+        && this_note_coordinates.canvas_max_y_downwards > coordinates.canvas_y_downwards) {
         return true;
       }
-    }) || null;
+    })
+    if (result === -1) {return null;}
+    return result;
   };
   let get_overlapping_notes = function (x1,y1,x2,y2) {
-    return phrase.data.notes.filter(function(note) {
-      const coordinates = node_coordinates (note);
+    return edited_phrase().data.notes.reduce(function(accumulator, note, index) {
+      const coordinates = note_coordinates (metadata.dimensions, note);
       //console.log (x1,y1,x2,y2, note) ;
       /*console.log (
         coordinates.canvas_min_x < x1,
@@ -153,16 +162,16 @@ function make_phrase_element (category) {
             coordinates.canvas_max_y_downwards > y2)
         ) {
         //console.log (x1,y1,x2,y2, note) ;
-        return true;
+        accumulator.push (index);
       }
-      return false;
-    });
+      return accumulator;
+    }, []);
   };
   
   let drag_select = null;
   let drag_move = null;
   let dragged_note = function (note) {
-    let result = copy_note(note);
+    let result = _.cloneDeep(note);
     
     if (drag_move.ends_only) {
       let time_shift = metadata.snap_time_to_grid(drag_move.reference_note.end + drag_move.current_coordinates.time - drag_move.original_coordinates.time) - drag_move.reference_note.end;
@@ -302,8 +311,8 @@ function make_phrase_element (category) {
     
     let this_phrase_tags = {}
     let for_selected = function (callback) {
-      _.forOwn (edited_phrase().saved_ui.selected_notes, function(index) {
-        callback (phrase.data.notes [index]);
+      _.forOwn (edited_phrase().saved_ui.selected_notes, function(v, index) {
+        callback (edited_phrase().data.notes [index]);
       });
     };
     
@@ -359,7 +368,7 @@ function make_phrase_element (category) {
     
     
     let changed = function() {
-      save_phrase("editable", project.edited_phrase);
+      save_phrase("editable", project.saved_ui.edited_phrase);
       update_tags();
       metadata.update_dimensions();
       metadata.redraw();
@@ -372,21 +381,21 @@ function make_phrase_element (category) {
         edited_phrase().saved_ui.selected_notes = {};
       }
       if (event.ctrlKey) {
-        notes.forEach(function(note, index) {
+        notes.forEach(function(index) {
           delete edited_phrase().saved_ui.selected_notes[index];
         });
       }
       else {
-        notes.forEach(function(note, index) {
+        notes.forEach(function(index) {
           edited_phrase().saved_ui.selected_notes[index] = true;
         });
       }
       update_selected_tags();
-      save_phrase_ui("editable", project.edited_phrase);
+      save_phrase_ui("editable", project.saved_ui.edited_phrase);
     }
     
     let create_note = function (note) {
-      metadata.edited_phrase.data.notes.push (note);
+      edited_phrase().data.notes.push (note);
     }
     
     canvas.addEventListener ("mousedown", function (event) {
@@ -398,14 +407,15 @@ function make_phrase_element (category) {
         drag_select = {event: event, original_coordinates: coordinates, current_coordinates: coordinates, maybe_click: true};
       }
       else {
+        const overlapping_note = edited_phrase().data.notes[overlapping];
         drag_move = {event: event, original_coordinates: coordinates, current_coordinates: coordinates, maybe_click: true, reference_note: overlapping};
-        if (edited_phrase().saved_ui.selected_notes [overlapping.index]) {
+        if (edited_phrase().saved_ui.selected_notes [overlapping]) {
           drag_move.dragged_notes = edited_phrase().saved_ui.selected_notes;
         }
         else {
-          drag_move.dragged_notes = {[overlapping.index]: true};
+          drag_move.dragged_notes = {[overlapping]: true};
         }
-        if (coordinates.time > (overlapping.start*1/4 + overlapping.end*3/4)) {
+        if (coordinates.time > (overlapping_note.start*1/4 + overlapping_note.end*3/4)) {
           drag_move.ends_only = true;
         }
       }
@@ -432,6 +442,7 @@ function make_phrase_element (category) {
         let overlapping = get_overlapping_note (coordinates);
         //console.log (coordinates, overlapping ) ;
         if (overlapping === null && event.shiftKey) {
+        console.log(coordinates);
           let note = {
             start: metadata.snap_time_to_grid(coordinates.time),
             end: metadata.snap_time_to_grid(coordinates.time) +1,
@@ -452,22 +463,22 @@ function make_phrase_element (category) {
       else if (drag_move) {
         if (coordinates.on_canvas) {
           if (drag_move.event.shiftKey) {
-            let old_length = phrase.data.notes.length;
-            iterate_keys(drag_move.dragged_notes, index => {
-              let note = phrase.data.notes [index];
-              create_note(copy_note(dragged_note (note)));
+            let old_length = edited_phrase().data.notes.length;
+            _.forOwn(drag_move.dragged_notes, (v, index) => {
+              let note = edited_phrase().data.notes [index];
+              create_note(_.cloneDeep(dragged_note (note)));
             });
             if (drag_move.dragged_notes === edited_phrase().saved_ui.selected_notes) {
               edited_phrase().saved_ui.selected_notes = {}
-              for (let i = old_length; i < phrase.data.notes.length; ++i) {
+              for (let i = old_length; i < edited_phrase().data.notes.length; ++i) {
                 edited_phrase().saved_ui.selected_notes[i] = true;
               }
-              save_phrase_ui("editable", project.edited_phrase);
+              save_phrase_ui("editable", project.saved_ui.edited_phrase);
             }
           } else {
             iterate_keys(drag_move.dragged_notes, index => {
-              let note = phrase.data.notes [index];
-              phrase.data.notes [index] = dragged_note (note);
+              let note = edited_phrase().data.notes [index];
+              edited_phrase().data.notes [index] = dragged_note (note);
             });
           }
 
@@ -510,7 +521,7 @@ function make_phrase_element (category) {
       }
       
       if (event.key === "Delete" || event.key === "Backspace") {
-        phrase.data.notes = phrase.data.notes.filter ((note, index) => !edited_phrase().saved_ui.selected_notes [index]);
+        edited_phrase().data.notes = edited_phrase().data.notes.filter ((note, index) => !edited_phrase().saved_ui.selected_notes [index]);
         edited_phrase().saved_ui.selected_notes = {} ;
         changed();
       }

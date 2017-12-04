@@ -83,6 +83,7 @@ window.load_phrase = function (category, name) {
 
 window.save_phrase = function (category, name) {
   const paths = phrase_paths (category, name);
+  const phrase = project[category].phrases[name];
   try {
     console.log(paths);
     if (category == "editable") {
@@ -93,8 +94,9 @@ window.save_phrase = function (category, name) {
 }
 window.save_phrase_ui = function (category, name) {
   const paths = phrase_paths (category, name);
+  const phrase = project[category].phrases[name];
   try {
-    console.log(paths);
+    //console.log(paths, phrase , project[category].phrases, name);
     filesystem.writeFileSync (paths.ui, JSON.stringify(phrase.saved_ui));
   } catch(e){console.log(e)}
 }
