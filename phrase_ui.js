@@ -128,7 +128,7 @@ function make_phrase_element (category) {
   let get_overlapping_note = function (coordinates) {
     const result = edited_phrase().data.notes.findIndex(function(note) {
       const this_note_coordinates = note_coordinates (metadata.dimensions, note);
-      console.log (coordinates, this_note_coordinates);
+      //console.log (coordinates, this_note_coordinates);
       if ( this_note_coordinates.canvas_min_x < coordinates.canvas_x
         && this_note_coordinates.canvas_max_x > coordinates.canvas_x
         && this_note_coordinates.canvas_min_y_downwards < coordinates.canvas_y_downwards
@@ -172,17 +172,18 @@ function make_phrase_element (category) {
   let drag_move = null;
   let dragged_note = function (note) {
     let result = _.cloneDeep(note);
+    const reference_note = edited_phrase().data.notes[drag_move.reference_note]
     
     if (drag_move.ends_only) {
-      let time_shift = metadata.snap_time_to_grid(drag_move.reference_note.end + drag_move.current_coordinates.time - drag_move.original_coordinates.time) - drag_move.reference_note.end;
+      let time_shift = metadata.snap_time_to_grid(reference_note.end + drag_move.current_coordinates.time - drag_move.original_coordinates.time) - reference_note.end;
       result.end += time_shift;
       result.end = Math.max(result.end, Math.min(note.end, result.start + metadata.grid_step_size()));
     }
     else {
-      let time_shift = metadata.snap_time_to_grid(drag_move.reference_note.start + drag_move.current_coordinates.time - drag_move.original_coordinates.time) - drag_move.reference_note.start;
+      let time_shift = metadata.snap_time_to_grid(reference_note.start + drag_move.current_coordinates.time - drag_move.original_coordinates.time) - reference_note.start;
       result.start += time_shift; result.end += time_shift;
       
-      let frequency_shift = metadata.snap_frequency_to_semitones (drag_move.reference_note.frequency * drag_move.current_coordinates.frequency / drag_move.original_coordinates.frequency) / drag_move.reference_note.frequency;
+      let frequency_shift = metadata.snap_frequency_to_semitones (reference_note.frequency * drag_move.current_coordinates.frequency / drag_move.original_coordinates.frequency) / reference_note.frequency;
       result.frequency *= frequency_shift;
     }
 
@@ -234,7 +235,7 @@ function make_phrase_element (category) {
     let step = metadata.grid_step_size();
     for (let time = Math.ceil(metadata.min_time/step)*step; time <metadata.max_time; time += step) {
       context.fillStyle = "#ccc";
-      context.fillRect(time_position(metadata.dimensions, time), 0, 1, metadata.height);
+      context.fillRect(time_position(metadata.dimensions, time), 0, 1, metadata.canvas_height);
     }
     
     context.fillStyle = "#000";
@@ -243,7 +244,7 @@ function make_phrase_element (category) {
     
     metadata.iterate_notes(function(note, index, phrase, name) {
       if (project.saved_ui.viewed_phrases[name] === false && project.saved_ui.edited_phrase !== name) {return;}
-      let dragged = drag_move && drag_move.dragged_notes [index];
+      let dragged = drag_move && project.saved_ui.edited_phrase === name &&  drag_move.dragged_notes [index];
       if (dragged) {
         draw_note (index, dragged_note (note), name);
       }
@@ -476,7 +477,7 @@ function make_phrase_element (category) {
               save_phrase_ui("editable", project.saved_ui.edited_phrase);
             }
           } else {
-            iterate_keys(drag_move.dragged_notes, index => {
+            _.forOwn(drag_move.dragged_notes, (v,index) => {
               let note = edited_phrase().data.notes [index];
               edited_phrase().data.notes [index] = dragged_note (note);
             });
