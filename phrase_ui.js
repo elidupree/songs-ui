@@ -233,9 +233,11 @@ function make_phrase_element (category) {
     }
     
     let step = metadata.grid_step_size();
-    for (let time = Math.ceil(metadata.min_time/step)*step; time <metadata.max_time; time += step) {
+    //console.log(step);
+    for (let time = Math.ceil(metadata.dimensions.min_time/step)*step; time <metadata.dimensions.max_time; time += step) {
       context.fillStyle = "#ccc";
-      context.fillRect(time_position(metadata.dimensions, time), 0, 1, metadata.canvas_height);
+      //console.log(time, time_position(metadata.dimensions, time), 0, 1, metadata.dimensions.canvas_height);
+      context.fillRect(time_position(metadata.dimensions, time), 0, 1, metadata.dimensions.canvas_height);
     }
     
     context.fillStyle = "#000";
