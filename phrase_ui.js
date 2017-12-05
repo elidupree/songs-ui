@@ -28,10 +28,12 @@ window.initialize_project_ui = function() {
     phrases_list.append($("<div>").append(
       $("<input>", {type: "radio", id: `${name}_edit_select`, name: "phrase_edit_select", value: name, checked: project.saved_ui.edited_phrase === name}).click (()=>{
         project.saved_ui.edited_phrase = name;
+        save_project_ui() ;
       }),
       $("<label>", {for: `${name}_edit_select`, text: name}),
       $("<input>", {type: "checkbox", id: `${name}_view_select`, name: "phrase_view_select", value: name, checked: project.saved_ui.viewed_phrases[name] !== false}).click (()=>{
         project.saved_ui.viewed_phrases[name] = $(`#${name}_view_select`).prop("checked");
+        save_project_ui() ;
       }),
       $("<label>", {for: `${name}_view_select`, text: name}),
     ));

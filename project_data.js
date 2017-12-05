@@ -36,6 +36,13 @@ window.load_project = function(project_path) {
   load_phrases ("editable");
   load_phrases ("generated");
 };
+window.save_project_ui = function() {
+  const ppath = path.join (project.path, `ui/project.json`);
+  try {
+    console.log(ppath);
+    filesystem.writeFileSync (ppath, JSON.stringify(project.saved_ui));
+  } catch(e){console.log(e)}
+}
 
 window.load_phrases = function (category) {
   const names = filesystem.readdirSync (path.join (project.path, category+"/phrases"));
@@ -109,6 +116,8 @@ window.save_playback_times = function() {
     console.log(ppath);
     filesystem.writeFileSync (ppath, JSON.stringify({playback_range: [project.saved_ui.playback_start, project.saved_ui.playback_end]}));
   } catch(e){console.log(e)}
+  
+  save_project_ui() ;
 }
 
 
