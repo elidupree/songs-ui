@@ -23,7 +23,10 @@ window.load_project = function(project_path) {
     project.saved_ui = loaded_ui;
   } catch (e) {
     console.log (e);
-    project.saved_ui = {viewed_phrases:{}};
+    project.saved_ui = {
+      viewed_phrases:{},
+      playback_start: 0.0, playback_end: 10.0,
+    };
   }
   
   project.path = project_path;
@@ -100,10 +103,13 @@ window.save_phrase_ui = function (category, name) {
     filesystem.writeFileSync (paths.ui, JSON.stringify(phrase.saved_ui));
   } catch(e){console.log(e)}
 }
-
-
-let playback_start = 0.0;
-let playback_end = 10.0;
+window.save_playback_times = function() {
+  const ppath = path.join (project.path, `ui/playback.json`);
+  try {
+    console.log(ppath);
+    filesystem.writeFileSync (ppath, JSON.stringify({playback_range: [project.saved_ui.playback_start, project.saved_ui.playback_end]}));
+  } catch(e){console.log(e)}
+}
 
 
 const tags = {};

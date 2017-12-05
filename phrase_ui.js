@@ -213,6 +213,14 @@ function make_phrase_element (category) {
     }
   };
   
+  let dragging_mouse_original_time = null;
+  let dragging_start;
+  let dragging_current_start = null;
+  let dragging_current_end = null;
+  let dragging_original_start = null;
+  let dragging_original_end = null;
+
+  
   let redraw = metadata.redraw = function() {
     context.fillStyle = "#eee";
     //context.fillRect(0,0,metadata.width,metadata.height);
@@ -257,9 +265,15 @@ function make_phrase_element (category) {
     
     if (category == "generated") {
       context.fillStyle = "#f00";
+      let start = project.saved_ui.playback_start;
+      let end   = project.saved_ui.playback_end  ;
+      if (dragging_mouse_original_time !== null) {
+        start = dragging_current_start;
+        end   = dragging_current_end  ;
+      }
       //context.fillRect((playback_position - metadata.min_time)*metadata.dimensions.pixels_per_second, 0, 1, metadata.dimensions.canvas_height);
-      context.fillRect((project.playback_start    - metadata.dimensions.min_time)*metadata.dimensions.pixels_per_second, 0, 1, metadata.dimensions.canvas_height);
-      context.fillRect((project.playback_end      - metadata.dimensions.min_time)*metadata.dimensions.pixels_per_second, 0, 1, metadata.dimensions.canvas_height);
+      context.fillRect((start    - metadata.dimensions.min_time)*metadata.dimensions.pixels_per_second, 0, 1, metadata.dimensions.canvas_height);
+      context.fillRect((end      - metadata.dimensions.min_time)*metadata.dimensions.pixels_per_second, 0, 1, metadata.dimensions.canvas_height);
     }
     
     if (drag_select !== null) {
@@ -273,37 +287,39 @@ function make_phrase_element (category) {
   };
   
   if (category == "generated") {
-  let dragging_mouse_original_time = null;
-  let dragging_start;
-  let dragging_original_start;
-  let dragging_original_end;
-  
+    
   canvas.addEventListener ("mousedown", function (event) {
     let coordinates = mouse_coordinates (event);
     dragging_mouse_original_time = coordinates.time;
-    dragging_start = Math.abs(coordinates.time - playback_start) < Math.abs(coordinates.time - playback_end);
-    dragging_original_start = playback_start;
-    dragging_original_end = playback_end;
+    dragging_start = Math.abs(coordinates.time - project.saved_ui.playback_start) < Math.abs(coordinates.time - project.saved_ui.playback_end);
+    dragging_current_start = dragging_original_start = project.saved_ui.playback_start;
+    dragging_current_end = dragging_original_end = project.saved_ui.playback_end;
   });
   document.addEventListener ("mousemove", function (event) {
     let coordinates = mouse_coordinates (event);
     if (dragging_mouse_original_time !== null) {
       //console.log(coordinates);
       if (!coordinates.on_canvas_horizontally) {
-        playback_start = dragging_original_start;
-        playback_end = dragging_original_end;
+        dragging_current_start = dragging_original_start;
+        dragging_current_end = dragging_original_end;
       }
       else if (dragging_start) {
-        playback_start = coordinates.time;
-        playback_end = Math.max(dragging_original_end, playback_start + 0.1);
+        dragging_current_start = coordinates.time;
+        dragging_current_end = Math.max(dragging_original_end, project.saved_ui.playback_start + 0.1);
       } else {
-        playback_end = coordinates.time;
-        playback_start = Math.min(dragging_original_start, playback_end - 0.1);
+        dragging_current_end = coordinates.time;
+        dragging_current_start = Math.min(dragging_original_start, project.saved_ui.playback_end - 0.1);
       }
     }
   });
   document.addEventListener ("mouseup", function (event) {
     dragging_mouse_original_time = null;
+    project.saved_ui.playback_start = dragging_current_start;
+    project.saved_ui.playback_end = dragging_current_end;
+    dragging_current_start = null;
+    dragging_current_end = null;
+    save_playback_times();
+
     /* TODO push_input ({
       "SetPlaybackRange": [playback_start, playback_end],
     });*/
