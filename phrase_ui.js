@@ -305,10 +305,10 @@ function make_phrase_element (category) {
       }
       else if (dragging_start) {
         dragging_current_start = coordinates.time;
-        dragging_current_end = Math.max(dragging_original_end, project.saved_ui.playback_start + 0.1);
+        dragging_current_end = Math.max(dragging_original_end, dragging_current_start + 0.1);
       } else {
         dragging_current_end = coordinates.time;
-        dragging_current_start = Math.min(dragging_original_start, project.saved_ui.playback_end - 0.1);
+        dragging_current_start = Math.min(dragging_original_start, dragging_current_end - 0.1);
       }
     }
   });
