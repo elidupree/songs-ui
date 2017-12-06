@@ -344,9 +344,9 @@ function make_phrase_element (category) {
     phrases_list.append($("<h1>").text("Phrases"), "New phrase: ",
       new_phrase_textbox = $("<input>", {type:"text"}),
       $("<input>", {type:"button"}).val("Create phrase").click (e=>{
-        const name = new_tag_textbox.val();
+        const name = new_phrase_textbox.val();
         if (project.editable.phrases[name] === undefined) {
-          const phrase = {};
+          const phrase = {saved_ui: default_saved_ui(), transient_ui: default_transient_ui(), data: {notes: []}};
           project.editable.phrases[name] = phrase;
           add_phrase_entry (phrase, name);
         }
