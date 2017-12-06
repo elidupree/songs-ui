@@ -179,7 +179,14 @@ function make_phrase_element (category) {
   };
   
   let draw_note = function(index, note, phrase_name) {
-    const coordinates = note_coordinates (metadata.dimensions, note);
+    let moved_note = _.cloneDeep(note);
+    //console.log(index, note, phrase_name)
+    let adjuster = document.getElementById (`${phrase_name}_edit_offset`);
+    let offset = 0;
+    if (adjuster) {offset = adjuster.valueAsNumber;}
+    moved_note.start += offset;
+    moved_note.end += offset;
+    const coordinates = note_coordinates (metadata.dimensions, moved_note);
     
     let color = to_rgb("#000000");
     note.tags.forEach(function(tag) {
@@ -274,6 +281,14 @@ function make_phrase_element (category) {
     }
   };
   
+
+
+
+
+
+
+
+  
   if (category == "generated") {
     
   canvas.addEventListener ("mousedown", function (event) {
@@ -314,9 +329,31 @@ function make_phrase_element (category) {
   });
   }
   
+
+
+
+
+
+
+
+
+  
   if (category == "editable") {
     const phrases_list = $("<div>");
-    _.forOwn(project.editable.phrases, (phrase, name) => {
+    let new_phrase_textbox;
+    phrases_list.append($("<h1>").text("Phrases"), "New phrase: ",
+      new_phrase_textbox = $("<input>", {type:"text"}),
+      $("<input>", {type:"button"}).val("Create phrase").click (e=>{
+        const name = new_tag_textbox.val();
+        if (project.editable.phrases[name] === undefined) {
+          const phrase = {};
+          project.editable.phrases[name] = phrase;
+          add_phrase_entry (phrase, name);
+        }
+      }),
+    );
+    
+    function add_phrase_entry(phrase, name) {
     phrases_list.append($("<div>").append(
       $("<input>", {type: "radio", id: `${name}_edit_select`, name: "phrase_edit_select", value: name, checked: project.saved_ui.edited_phrase === name}).click (()=>{
         project.saved_ui.edited_phrase = name;
@@ -328,9 +365,17 @@ function make_phrase_element (category) {
         save_project_ui() ;
       }),
       $("<label>", {for: `${name}_view_select`, text: name}),
+      $("<input>", {type: "number", id: `${name}_edit_offset`, value: 0, }),
+      $("<label>", {for: `${name}_edit_offset`, text: "offset"}),
     ));
-  });
-  $(options).append($("<h1>").text("Phrases"), phrases_list);
+
+    }
+  
+  
+    _.forOwn(project.editable.phrases, add_phrase_entry);
+  $(options).append(phrases_list);
+  
+  
     
     
     let this_phrase_tags = {}
