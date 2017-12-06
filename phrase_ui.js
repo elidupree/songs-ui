@@ -6,16 +6,16 @@ function make_phrase_canvas() {
 }
 
 window.initialize_project_ui = function() {
+
   const metadatas = [
     make_phrase_element ("editable"),
     make_phrase_element ("generated"),
     
   ];
-  const phrases_list = $("<div>");
+  
   project.element = $("<div>", {class: "project"}).append (
     $("<div>", {class: "phrase_editor"}).append (
       metadatas [0].element,
-      phrases_list,
     ),
     $("<div>", {class: "rendered_phrase_display"}).append (
       metadatas [1].element,
@@ -23,21 +23,6 @@ window.initialize_project_ui = function() {
     ),
   );
   document.getElementById ("phrases").appendChild (project.element [0]);
-  
-  _.forOwn(project.editable.phrases, (phrase, name) => {
-    phrases_list.append($("<div>").append(
-      $("<input>", {type: "radio", id: `${name}_edit_select`, name: "phrase_edit_select", value: name, checked: project.saved_ui.edited_phrase === name}).click (()=>{
-        project.saved_ui.edited_phrase = name;
-        save_project_ui() ;
-      }),
-      $("<label>", {for: `${name}_edit_select`, text: name}),
-      $("<input>", {type: "checkbox", id: `${name}_view_select`, name: "phrase_view_select", value: name, checked: project.saved_ui.viewed_phrases[name] !== false}).click (()=>{
-        project.saved_ui.viewed_phrases[name] = $(`#${name}_view_select`).prop("checked");
-        save_project_ui() ;
-      }),
-      $("<label>", {for: `${name}_view_select`, text: name}),
-    ));
-  });
   
   
   function update() {
@@ -58,6 +43,7 @@ function edited_phrase() {return project.editable.phrases[project.saved_ui.edite
 function make_phrase_element (category) {
   let metadata = {};
   let div = metadata.element = document.createElement ("div");
+  $(div).css({display:"flex"});
   let canvas = document.createElement ("canvas");
   let context = canvas.getContext ("2d");
   div.appendChild (canvas) ;
@@ -329,6 +315,23 @@ function make_phrase_element (category) {
   }
   
   if (category == "editable") {
+    const phrases_list = $("<div>");
+    _.forOwn(project.editable.phrases, (phrase, name) => {
+    phrases_list.append($("<div>").append(
+      $("<input>", {type: "radio", id: `${name}_edit_select`, name: "phrase_edit_select", value: name, checked: project.saved_ui.edited_phrase === name}).click (()=>{
+        project.saved_ui.edited_phrase = name;
+        save_project_ui() ;
+      }),
+      $("<label>", {for: `${name}_edit_select`, text: name}),
+      $("<input>", {type: "checkbox", id: `${name}_view_select`, name: "phrase_view_select", value: name, checked: project.saved_ui.viewed_phrases[name] !== false}).click (()=>{
+        project.saved_ui.viewed_phrases[name] = $(`#${name}_view_select`).prop("checked");
+        save_project_ui() ;
+      }),
+      $("<label>", {for: `${name}_view_select`, text: name}),
+    ));
+  });
+  $(options).append($("<h1>").text("Phrases"), phrases_list);
+    
     
     let this_phrase_tags = {}
     let for_selected = function (callback) {
@@ -378,9 +381,9 @@ function make_phrase_element (category) {
 
     
     let new_tag_textbox;
-    tags_box.append("New tag: ",
+    tags_box.append($("<h1>").text("Tags"), "New tag: ",
       new_tag_textbox = $("<input>", {type:"text"}),
-      $("<input>", {type:"button"}).click (e=>{
+      $("<input>", {type:"button"}).val("Create tag").click (e=>{
         add_tag_chooser (new_tag_textbox.val())
       }),
     );
