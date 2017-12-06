@@ -178,12 +178,10 @@ function make_phrase_element (category) {
     return result;
   };
   
-  let draw_note = function(index, note, phrase_name) {
+  let draw_note = function(index, note, phrase_name, phrase) {
     let moved_note = _.cloneDeep(note);
     //console.log(index, note, phrase_name)
-    let adjuster = document.getElementById (`${phrase_name}_edit_offset`);
-    let offset = 0;
-    if (adjuster) {offset = adjuster.valueAsNumber;}
+    let offset = phrase.saved_ui.visual_offset || 0;
     moved_note.start += offset;
     moved_note.end += offset;
     const coordinates = note_coordinates (metadata.dimensions, moved_note);
@@ -251,10 +249,10 @@ function make_phrase_element (category) {
       if (project.saved_ui.viewed_phrases[name] === false && project.saved_ui.edited_phrase !== name) {return;}
       let dragged = drag_move && project.saved_ui.edited_phrase === name &&  drag_move.dragged_notes [index];
       if (dragged) {
-        draw_note (index, dragged_note (note), name);
+        draw_note (index, dragged_note (note), name, phrase);
       }
       if (!(dragged && !drag_move.event.shiftKey)) {
-        draw_note (index, note, name);
+        draw_note (index, note, name, phrase);
       }
     });
     
@@ -365,8 +363,11 @@ function make_phrase_element (category) {
         save_project_ui() ;
       }),
       $("<label>", {for: `${name}_view_select`, text: name}),
-      $("<input>", {type: "number", id: `${name}_edit_offset`, value: 0, }),
-      $("<label>", {for: `${name}_edit_offset`, text: "offset"}),
+      $("<input>", {type: "number", id: `${name}_edit_offset`, value: phrase.saved_ui.visual_offset || 0, }).on("input", ()=>{
+        phrase.saved_ui.visual_offset = document.getElementById (`${name}_edit_offset`).valueAsNumber;
+        save_phrase_ui("editable", name);
+      }),
+      $("<label>", {for: `${name}_edit_offset`, text: "visual offset"}),
     ));
 
     }
